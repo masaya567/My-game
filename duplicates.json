@@ -1,0 +1,24 @@
+{
+  "graphics/effects": {
+    "duplicates": [
+      "judge_ring.py",
+      "judge_burst.py",
+      "lane_flash.py"
+    ],
+    "action": "keep_latest"
+  },
+  "resource_manager": {
+    "duplicates": [
+      "font_manager.py",
+      "image_manager.py"
+    ],
+    "action": "merge"
+  },
+  "songs": {
+    "duplicates": [
+      "track_01.wav",
+      "track_01_backup.wav"
+    ],
+    "action": "remove_backup"
+  }
+}

@@ -1,0 +1,48 @@
+# ============================================
+# 商用仕様：Python ゲームプロジェクト用 .gitignore
+# ============================================
+
+# --- Python キャッシュ ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- 仮想環境 ---
+venv/
+env/
+.venv/
+.env/
+
+# --- ビルド生成物 ---
+build/
+dist/
+*.egg-info/
+*.spec
+
+# --- ログ・一時ファイル ---
+*.log
+*.tmp
+*.bak
+*.swp
+
+# --- VS Code 設定 ---
+.vscode/
+.history/
+*.code-workspace
+
+# --- OS 固有ファイル ---
+.DS_Store
+Thumbs.db
+
+# --- ゲーム関連 ---
+assets/temp/
+assets/cache/
+screenshots/
+recordings/
+debug_output/
+
+# --- その他 ---
+.idea/
+*.zip
+*.rar
+*.7z
