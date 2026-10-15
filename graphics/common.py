@@ -57,6 +57,7 @@ def create_vertical_gradient(width: int, height: int, color_top, color_bottom) -
 def create_glow(radius: int, color=(120, 200, 255), intensity: int = 120) -> pygame.Surface:
     """円形の発光エフェクトを生成（高速化版）"""
     glow = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+    color = tuple(int(channel) for channel in color[:3])
     layers = 12
     for i in range(layers):
         ratio = 1 - (i / layers)

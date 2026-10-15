@@ -1,100 +1,126 @@
 """
-商用仕様：Song モデル（完全統合版）
-
-音響解析・譜面生成・譜面ロード・再生制御・メタ情報管理を統合した
-ゲーム全体の中心となる曲データモデル。
+商用品質：Song モデル（完全統合版・音声 + 自動譜面生成 + JSON 譜面 + ジャケット画像）
 """
+
+print("[DEBUG] SongModel loaded from:", __file__)
 
 import os
 import pygame
-from utils.common.utils import load_chart
+from typing import Optional
+
+from utils.common.utils import load_chart_json
+from graphics.note import Note
+from songs.analysis.audio.audio_analyzer import AudioAnalyzer
+from chart.generator.auto_chart_generator import AutoChartGenerator
+
+# ★ 曲ごとのテーマカラー
+from utils.color.theme_colors import SONG_COLOR_MAP
+
+# ★ ジャケット生成
+from utils.jacket.jacket_generator import make_proseka_jacket
 
 
 class Song:
     """
-    商用仕様：曲データモデル（ゲーム全体の中心）
+    商用品質：曲データモデル（音声 + 譜面 + ジャケット）
+    JSON 譜面があればロード、なければ自動生成。
+    ジャケット画像は曲ごとのテーマカラーで自動生成。
     """
 
     def __init__(
         self,
         song_id: str,
         title: str,
-        file: str,
+        audio_file: str,
+        chart_file: Optional[str],
         bpm: int = 120,
-        difficulty: int = 1,
+        difficulty: str = "normal",
         chart_mode: str = "NORMAL",
         jacket: str = None,
     ):
-        # 基本情報
+        # メタ情報
         self.song_id = song_id
         self.title = title
-        self.file = file
+        self.audio_file = audio_file
+        self.chart_file = chart_file  # None = 自動生成
         self.bpm = bpm
         self.difficulty = difficulty
         self.chart_mode = chart_mode
         self.jacket = jacket
 
-        # 音響解析データ（audio_analyzer が埋める）
-        self.pro_onset_times = []
-        self.pro_rms = []
-        self.pro_centroid_norm = []
-        self.pro_sustain = []
-        self.pro_sub_onsets = {}
-
-        # BPM 変化イベント（可変 BPM 曲対応）
-        self.bpm_events = []  # 例: [{"time": 12.5, "bpm": 180}]
+        # 解析結果
+        self.audio_analyzer = None
+        self.bpm_events = []
 
         # 譜面データ
-        self.chart = None  # JSON or 自動生成
-        self.notes = []  # 最終的な Note オブジェクト
+        self.chart = []  # dict ノーツ
+        self.notes = []  # Note オブジェクト
 
-        # 曲の長さ
         self.length = 0.0
         self.loaded = False
 
-    # ============================================================
-    # 音響解析結果セット
-    # ============================================================
+        # ジャケット画像
+        self.jacket_image = None
+        self.jacket_shadow = None
 
-    def set_analysis(
-        self,
-        onset_times,
-        rms,
-        centroid_norm,
-        sustain,
-        sub_onsets=None,
-    ):
-        """音響解析結果を Song にセットする"""
-        self.pro_onset_times = onset_times
-        self.pro_rms = rms
-        self.pro_centroid_norm = centroid_norm
-        self.pro_sustain = sustain
-        self.pro_sub_onsets = sub_onsets or {}
+        # ============================================================
+        # ジャケット画像生成（曲ごとに色テーマを反映）
+        # ============================================================
+        base_color = SONG_COLOR_MAP.get(self.song_id, (120, 120, 255))
 
-    # ============================================================
-    # BPM 変化イベントセット
-    # ============================================================
-
-    def set_bpm_events(self, events):
-        """可変 BPM 曲の BPM イベントをセット"""
-        self.bpm_events = events
+        try:
+            self.jacket_shadow, self.jacket_image = make_proseka_jacket(
+                title=self.title,
+                base_color=base_color,
+                image_path="assets/images/note.png",
+                size=(256, 256),
+            )
+            self.jacket = self.jacket_image
+            print(f"[Song] Jacket generated for: {self.title}")
+        except Exception as e:
+            print(f"[Song] Jacket generation failed for {self.title}: {e}")
+            self.jacket_shadow = None
+            self.jacket_image = None
 
     # ============================================================
-    # 曲データロード
+    # 曲データロード（音声ロード → BPM解析 → 譜面ロード）
     # ============================================================
 
     def load(self):
-        """音声ファイルと譜面データをロード"""
-        if not os.path.exists(self.file):
-            print(f"[Song] File not found: {self.file}")
+        # 音声ファイルチェック
+        if not self.audio_file or not os.path.exists(self.audio_file):
+            print(f"[Song] Audio file not found: {self.audio_file}")
+            return False
+
+        # JSON 譜面チェック
+        if self.chart_file is not None and not os.path.exists(self.chart_file):
+            print(f"[Song] Chart file not found: {self.chart_file}")
             return False
 
         try:
-            pygame.mixer.music.load(self.file)
-            self.length = pygame.mixer.Sound(self.file).get_length()
+            # AudioAnalyzer 初期化
+            self.audio_analyzer = AudioAnalyzer(self.audio_file)
+            self.audio_analyzer.ensure_audio()
 
-            # 譜面ロード（JSON or 自動生成）
-            load_chart(self, self.chart_mode)
+            # BPM解析（重複防止）
+            if not hasattr(self.audio_analyzer, "bpm") or self.audio_analyzer.bpm is None:
+                self.audio_analyzer.analyze_bpm()
+
+            self.bpm = float(self.audio_analyzer.bpm or self.bpm)
+            self.bpm_events = getattr(self.audio_analyzer, "bpm_events", [])
+
+            # 曲の長さ
+            pygame.mixer.music.load(self.audio_file)
+            self.length = pygame.mixer.Sound(self.audio_file).get_length()
+
+            # JSON 譜面ロード（自動生成は GameplayScreen に移動）
+            if self.chart_file is not None:
+                self.chart = load_chart_json(self.chart_file)
+                self.build_notes()
+            else:
+                # ★ 初期ロードでは譜面生成しない（高速化）
+                self.chart = []
+                self.notes = []
 
             self.loaded = True
             print(f"[Song] Loaded: {self.title} ({self.chart_mode})")
@@ -106,6 +132,30 @@ class Song:
             return False
 
     # ============================================================
+    # dict → Note オブジェクト変換
+    # ============================================================
+
+    def build_notes(self):
+        self.notes = []
+
+        if not self.chart:
+            return
+
+        for item in self.chart:
+            lane = item.get("lane", 0)
+            time = item.get("time", 0.0)
+            note_type = item.get("type", "tap")
+
+            if note_type == "tap":
+                duration = 0.0
+            else:
+                duration = item.get("duration", 0.0)
+                if "end_time" in item:
+                    duration = max(0.0, item["end_time"] - time)
+
+            self.notes.append(Note(lane, time, duration))
+
+    # ============================================================
     # 再生制御
     # ============================================================
 
@@ -114,7 +164,6 @@ class Song:
             print("[Song] Not loaded.")
             return
         pygame.mixer.music.play(start=round(start_pos, 2))
-        print(f"[Song] Playing from {start_pos:.2f}s")
 
     def stop(self):
         pygame.mixer.music.stop()
@@ -126,29 +175,6 @@ class Song:
         pygame.mixer.music.unpause()
 
     # ============================================================
-    # 譜面 → notes 変換
-    # ============================================================
-
-    def build_notes(self):
-        """chart → notes の変換（自動譜面生成後に呼ぶ）"""
-        notes = []
-
-        for item in self.chart:
-            if item["type"] == "tap":
-                notes.append({"time": item["time"], "lane": item["lane"], "type": "tap"})
-            elif item["type"] == "long":
-                notes.append(
-                    {
-                        "time": item["time"],
-                        "lane": item["lane"],
-                        "type": "long",
-                        "end_time": item["end_time"],
-                    }
-                )
-
-        self.notes = notes
-
-    # ============================================================
     # 情報取得
     # ============================================================
 
@@ -156,7 +182,8 @@ class Song:
         return {
             "song_id": self.song_id,
             "title": self.title,
-            "file": self.file,
+            "audio": self.audio_file,
+            "chart": self.chart_file,
             "bpm": self.bpm,
             "difficulty": self.difficulty,
             "chart_mode": self.chart_mode,

@@ -79,3 +79,19 @@ THEMES = {
 # ============================================================
 
 UI_COLORS = THEMES["Blue"]
+
+# Song IDs map to RGB jacket background colors.
+SONG_COLOR_MAP = {
+    "fantaisie": PURPLE,
+    "moonlight": (20, 24, 60),
+    "erize": PINK,
+    "wakareno": (180, 80, 120),
+    "lacampanella": YELLOW,
+    "hungarian5": (180, 35, 45),
+    "aux-enfers": (80, 25, 35),
+    "arabesque1": CYAN,
+    "gline": (235, 220, 180),
+    "carmen": RED,
+    "trukish": BLUE,
+    "music": (80, 180, 140),
+}

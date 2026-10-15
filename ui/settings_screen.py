@@ -36,6 +36,12 @@ class SettingsScreen(BaseScreen):
                 "value": manager.settings.get("theme_color", "Blue"),
                 "choices": ["Blue", "Pink", "Green", "Gold"],
             },
+            {
+                "name": "Key Config",
+                "key": "key_config",
+                "value": "Press Enter",
+                "action": "key_config",
+            },
         ]
 
         self.index = 0
@@ -127,6 +133,12 @@ class SettingsScreen(BaseScreen):
                 self.modify_option(1)
                 self.play_se("se_move")
 
+            elif event.key == pygame.K_RETURN:
+                action = self.options[self.index].get("action")
+                if action:
+                    self.play_se("se_decide")
+                    self.request_transition(action)
+
             # ESC → 保存して戻る
             elif event.key == pygame.K_ESCAPE:
                 self.save_settings()
@@ -139,6 +151,8 @@ class SettingsScreen(BaseScreen):
 
     def modify_option(self, direction):
         opt = self.options[self.index]
+        if "action" in opt:
+            return
 
         if "choices" in opt:
             choices = opt["choices"]
@@ -156,4 +170,9 @@ class SettingsScreen(BaseScreen):
     def save_settings(self):
         """manager.settings に保存する"""
         for opt in self.options:
+            if "action" in opt:
+                continue
             self.manager.settings[opt["key"]] = opt["value"]
+        save_settings = getattr(self.manager, "save_settings", None)
+        if callable(save_settings):
+            save_settings()

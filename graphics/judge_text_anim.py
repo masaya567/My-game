@@ -1,14 +1,16 @@
+"""
+商用品質：判定テキスト演出モジュール（完全版・最終形態）
+
+Perfect / Great / Good / Miss の文字エフェクトを描画する。
+"""
+
 import pygame
 import math
 
 
 class JudgeTextAnim:
     """
-    商用品質：判定文字アニメーション
-    - PERFECT：白＋金の発光、拡大、残像、揺れ
-    - GREAT：青の発光
-    - GOOD：緑の軽い発光
-    - MISS：赤の縮小フェード
+    商用品質：判定文字アニメーション（最終形態）
     """
 
     def __init__(self, res):
@@ -19,12 +21,12 @@ class JudgeTextAnim:
         self.x = 0
         self.y = 0
 
-        # 色設定
+        # ★ 商用品質：判定ごとの色変化（完全版）
         self.colors = {
-            "perfect": (255, 255, 255),
-            "great": (120, 180, 255),
-            "good": (120, 255, 160),
-            "miss": (255, 80, 80),
+            "perfect": (255, 230, 120),  # 金色
+            "great": (120, 180, 255),  # 青
+            "good": (120, 255, 160),  # 緑
+            "miss": (255, 80, 80),  # 赤
         }
 
     def trigger(self, judge, x, y):
@@ -47,40 +49,37 @@ class JudgeTextAnim:
             return
 
         t = self.timer
-        color = self.colors[self.judge]
+        color = self.colors.get(self.judge, (255, 255, 255))
 
-        # フォント
         font = self.res.get_font(48, weight="bold")
         text = self.judge.upper()
 
-        # 拡大率
-        if self.judge == "perfect":
-            scale = 1.0 + math.sin(t * 12) * 0.15 + (0.45 - t) * 0.8
-        elif self.judge == "great":
-            scale = 1.0 + (0.45 - t) * 0.4
-        elif self.judge == "good":
-            scale = 1.0 + (0.45 - t) * 0.2
-        else:  # MISS
-            scale = 1.0 - t * 0.4
+        # プロセカ風: 大きく出て、少し行き過ぎてから基準位置へ戻す。
+        intro = min(1.0, t / 0.16)
+        overshoot = 1.0 + 0.16 * math.sin(intro * math.pi)
+        scale = (1.55 - 0.55 * intro) * overshoot
+        if t >= 0.16:
+            settle = min(1.0, (t - 0.16) / 0.22)
+            scale = 1.0 + (1.0 - settle) * 0.06 * math.sin(settle * math.pi)
 
-        # 透明度
-        alpha = int(255 * (1.0 - t / 0.45))
+        # --- アルファ ---
+        alpha = max(0, min(255, int(255 * (1.0 - t / 0.45))))
+        rise = 34 * min(1.0, t / 0.16)
+        bounce = 10 * math.sin(min(1.0, t / 0.28) * math.pi)
+        draw_y = self.y - rise - bounce
 
-        # テキスト描画
         surf = font.render(text, True, color)
         surf = pygame.transform.rotozoom(surf, 0, scale)
-
-        # 透明度適用
         surf.set_alpha(alpha)
 
-        rect = surf.get_rect(center=(self.x, self.y))
+        rect = surf.get_rect(center=(self.x, draw_y))
 
-        # PERFECT の残像
+        # --- PERFECT の残像（薄めに調整） ---
         if self.judge == "perfect":
             for i in range(3):
                 ghost = pygame.transform.rotozoom(surf, 0, scale - 0.1 * (i + 1))
-                ghost.set_alpha(alpha // (i + 2))
-                ghost_rect = ghost.get_rect(center=(self.x, self.y - (i * 6)))
+                ghost.set_alpha(alpha // (i + 3))
+                ghost_rect = ghost.get_rect(center=(self.x, draw_y - (i * 5)))
                 screen.blit(ghost, ghost_rect)
 
         screen.blit(surf, rect)

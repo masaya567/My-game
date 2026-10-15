@@ -1,6 +1,7 @@
 import pygame
 from ui.base_screen import BaseScreen
 from constants import WIDTH, HEIGHT, UI_COLORS, UI_SCALE
+from utils.theme.theme import get_ui_scale
 
 
 class DifficultySelectScreen(BaseScreen):
@@ -17,26 +18,26 @@ class DifficultySelectScreen(BaseScreen):
         super().__init__(manager)
         self.song = song
 
-        self.difficulties = ["EASY", "NORMAL", "HARD", "EXPERT"]
-        self.index = 1  # NORMAL を初期選択
+        self.difficulties = ["イージー", "ノーマル", "ハード", "エキスパート"]
+        self.index = 1  # ノーマルを初期選択
 
         self.scroll_y = 0
         self.target_scroll_y = 0
 
         # 難易度色テーマ
         self.diff_colors = {
-            "EASY": (120, 200, 255),
-            "NORMAL": (120, 255, 160),
-            "HARD": (255, 200, 120),
-            "EXPERT": (255, 120, 160),
+            "イージー": (120, 200, 255),
+            "ノーマル": (120, 255, 160),
+            "ハード": (255, 200, 120),
+            "エキスパート": (255, 120, 160),
         }
 
         # 説明文
         self.descriptions = {
-            "EASY": "初心者向け。ノーツ数が少なく、テンポも穏やか。",
-            "NORMAL": "標準的な難易度。リズムに慣れるのに最適。",
-            "HARD": "中級者向け。複雑な配置と連打が登場。",
-            "EXPERT": "上級者向け。高密度ノーツと高速展開。",
+            "イージー": "初心者向け。ノーツ数が少なく、ゆったり進みます。",
+            "ノーマル": "標準的。リズムに慣れるのに最適です。",
+            "ハード": "中級者向け。連打や細かい配置が増えます。",
+            "エキスパート": "上級者向け。密度が高く、速い展開です。",
         }
 
     # ============================================================
@@ -59,43 +60,46 @@ class DifficultySelectScreen(BaseScreen):
     # ============================================================
 
     def draw(self, screen):
+        scale = get_ui_scale()
         screen.fill(UI_COLORS["bg_select"])
 
         # タイトル
         self.center_text(
             screen,
-            "SELECT DIFFICULTY",
-            size=48,
-            y=int(60 * UI_SCALE),
+            "難易度を選択",
+            size=34,
+            y=int(40 * scale),
             color=UI_COLORS["title_glow"],
             weight="bold",
+            max_width=WIDTH - 40,
         )
 
         # 曲名
         self.center_text(
             screen,
             self.song.title,
-            size=32,
-            y=int(140 * UI_SCALE),
+            size=22,
+            y=int(95 * scale),
             color=UI_COLORS["text_primary"],
+            max_width=WIDTH - 40,
         )
 
         # カード UI
-        base_y = int(240 * UI_SCALE) + self.scroll_y
+        base_y = int(140 * scale) + self.scroll_y
 
         for i, diff in enumerate(self.difficulties):
             is_selected = i == self.index
 
             # カードサイズ
-            card_w = int(600 * UI_SCALE)
-            card_h = int(110 * UI_SCALE)
+            card_w = int(WIDTH * 0.86)
+            card_h = int(80 * scale)
             x = WIDTH // 2 - card_w // 2
-            y = base_y + i * int(140 * UI_SCALE)
+            y = base_y + i * int(93 * scale)
 
             # 選択中は拡大
             if is_selected:
-                card_w = int(card_w * 1.08)
-                card_h = int(card_h * 1.08)
+                card_w = int(card_w * 1.02)
+                card_h = int(card_h * 1.02)
                 x = WIDTH // 2 - card_w // 2
 
             rect = pygame.Rect(x, y, card_w, card_h)
@@ -119,21 +123,22 @@ class DifficultySelectScreen(BaseScreen):
                 screen.blit(glow, rect)
 
             # 難易度名
-            font = self.res.get_font(40, weight="bold")
+            font = self.res.get_font(24, weight="bold")
             text = font.render(diff, True, (30, 30, 30))
-            screen.blit(text, (x + 20, y + 15))
+            screen.blit(text, (x + 18, y + 10))
 
             # 説明文
-            font2 = self.res.get_font(24)
-            desc = font2.render(self.descriptions[diff], True, (40, 40, 40))
-            screen.blit(desc, (x + 20, y + 65))
+            font2 = self.res.get_font(16)
+            desc_text = self.fit_text(self.descriptions[diff], max_width=int(card_w - 40), size=16)
+            desc = font2.render(desc_text, True, (40, 40, 40))
+            screen.blit(desc, (x + 18, y + 42))
 
         # 操作説明
         self.center_text(
             screen,
             "Enter: 決定   Esc: 戻る",
-            size=24,
-            y=int(HEIGHT - 80 * UI_SCALE),
+            size=18,
+            y=int(HEIGHT - 60 * scale),
             color=UI_COLORS["text_secondary"],
         )
 
@@ -161,8 +166,21 @@ class DifficultySelectScreen(BaseScreen):
             # 決定
             elif event.key == pygame.K_RETURN:
                 selected_diff = self.difficulties[self.index]
+                self.song.chart_mode = selected_diff
+                self.song.difficulty = {
+                    "イージー": "easy",
+                    "ノーマル": "normal",
+                    "ハード": "hard",
+                    "エキスパート": "expert",
+                }.get(selected_diff, "normal")
                 self.play_se("se_decide")
-                self.request_transition(("chart_preview", self.song))
+                self.request_transition((
+                    "chart_preview",
+                    {
+                        "song": self.song,
+                        "difficulty": self.song.difficulty,
+                    }
+                ))
 
             # 戻る
             elif event.key == pygame.K_ESCAPE:

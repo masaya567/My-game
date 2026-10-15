@@ -1,5 +1,5 @@
 """
-ゲーム全体で使う定数定義
+ゲーム全体で使う定数定義（市販音ゲー品質・最終統合版）
 """
 
 import pygame
@@ -9,30 +9,96 @@ import pygame
 # ========================
 WIDTH = 400
 HEIGHT = 600
+UI_SCALE = 1.0
 LANES = 4
 LANE_WIDTH = WIDTH // LANES
 
-# ========================
-# ノーツ判定
-# ========================
-JUDGE_LINE = HEIGHT - 100
-PERFECT_RANGE = 20
-GREAT_RANGE = 40
-GOOD_RANGE = 60
-LONG_NOTE_LENGTH = 300
-SHORT_NOTE_LENGTH = 150
-LONG_NOTE_THRESHOLD = 150
-NOTE_HEIGHT = 20
+# レーン中心座標
+LANE_X = [int((i + 0.5) * LANE_WIDTH) for i in range(LANES)]
 
-# 判定タイミング（秒）
-PERFECT_TIME = 0.03
-GREAT_TIME = 0.06
-GOOD_TIME = 0.10
+# ========================
+# 判定ライン（画面比率で安定）
+# ========================
+JUDGE_LINE = int(HEIGHT * 0.78)
+JUDGE_LINE_WIDTH = 4
+NOTE_FALL_TIME = 1.8
+
+
+# ========================
+# ノーツ速度（BPM依存）
+# ========================
+def calc_note_speed(song_bpm):
+    return 280 + (song_bpm * 0.8)
+
+
+# ========================
+# 判定タイミング（速度依存）
+# ========================
+def calc_judge_times(note_speed):
+    speed_factor = note_speed / 380.0
+
+    PERFECT_TIME = 0.045 / speed_factor
+    GREAT_TIME = 0.090 / speed_factor
+    GOOD_TIME = 0.140 / speed_factor
+    MISS_TIME = 0.220 / speed_factor
+
+    return PERFECT_TIME, GREAT_TIME, GOOD_TIME, MISS_TIME
+
+
+# ========================
+# 判定幅（px）速度同期
+# ========================
+def calc_px_ranges(note_speed, PERFECT_TIME, GREAT_TIME, GOOD_TIME):
+    PERFECT_RANGE = int(note_speed * PERFECT_TIME)
+    GREAT_RANGE = int(note_speed * GREAT_TIME)
+    GOOD_RANGE = int(note_speed * GOOD_TIME)
+    return PERFECT_RANGE, GREAT_RANGE, GOOD_RANGE
+
+
+# ========================
+# 難易度別判定スケール
+# ========================
+DIFFICULTY_JUDGE_SCALE = {
+    "EASY": 1.20,
+    "NORMAL": 1.00,
+    "HARD": 0.90,
+    "EXPERT": 0.80,
+}
+
+# ========================
+# ノーツサイズ
+# ========================
+NOTE_HEIGHT = 20
+NOTE_START_Y = -40
+
+
+# ロングノーツ長さ（音の強弱で変動）
+def calc_long_length(peak_strength):
+    return int(200 + (peak_strength * 180))
+
+
+LONG_NOTE_THRESHOLD = 150
+
+
+# ========================
+# 視認性（速度依存）
+# ========================
+def calc_visible_time(note_speed):
+    return max(3.5, 6.0 - (note_speed / 200))
+
+
+SPAWN_Y = -NOTE_HEIGHT
+BPM_SMOOTHING = 0.12
 
 # ========================
 # キー設定
 # ========================
-KEYS_TO_LANES = {pygame.K_d: 0, pygame.K_f: 1, pygame.K_j: 2, pygame.K_k: 3}
+KEYS_TO_LANES = {
+    pygame.K_d: 0,
+    pygame.K_f: 1,
+    pygame.K_j: 2,
+    pygame.K_k: 3,
+}
 
 # ========================
 # 色定義
@@ -49,24 +115,28 @@ BLUE = (0, 0, 255)
 LANE_COLORS = [(0, 0, 0), (40, 40, 40), (80, 80, 80), (120, 120, 120)]
 
 # ========================
-# UI カラー定義
+# UI カラー
 # ========================
 UI_COLORS = {
     "button_selected": (80, 120, 255),
     "button_default": (200, 220, 255),
     "title_glow": (60, 120, 255),
+    "bg_title": (20, 30, 60),
     "text_primary": (30, 30, 30),
     "text_secondary": (60, 120, 255),
     "bg_lane_even": (255, 255, 255, 18),
     "bg_lane_odd": (220, 235, 255, 28),
+    "bg_select": (240, 245, 255),
     "judge_line": (60, 120, 255),
     "judge_glow": (80, 170, 255, 70),
     "lane_flash": (100, 150, 255),
     "holding_highlight": (0, 220, 255, 45),
+    "menu_highlight": (40, 80, 160),
+
 }
 
 # ========================
-# ノーツ描画パラメータ
+# ノーツ描画カラー
 # ========================
 NOTE_COLORS = {
     "short_body": (0, 200, 255),
@@ -80,33 +150,47 @@ NOTE_COLORS = {
 }
 
 # ========================
-# 画像・グラフィックス
+# 判定カラー
 # ========================
-JACKET_SIZE = 200
+JUDGE_COLORS = {
+    "perfect": (120, 180, 255),
+    "great": (180, 255, 120),
+    "good": (255, 220, 120),
+    "miss": (255, 80, 80),
+}
 
-# ========================
-# 譜面生成パラメータ
-# ========================
-CHART_GENERATION_PARAMS = {
-    "EASY": {
-        "note_steps": [60 / 130],  # 4分のみ（BPMで計算）
-        "long_chance": 0.05,
-        "long_duration_beats": (2, 3),
-    },
-    "NORMAL": {
-        "note_steps": [1.0, 0.5],  # 4分、8分
-        "long_chance": 0.20,
-        "long_duration_beats": (2, 3),
-    },
-    "HARD": {
-        "note_steps": [1.0, 0.5, 0.25],  # 4分、8分、16分
-        "long_chance": 0.2,
-        "long_duration_beats": (2, 3, 4),
-    },
+JUDGE_STRENGTH = {
+    "perfect": 1.0,
+    "great": 0.8,
+    "good": 0.6,
+    "miss": 0.0,
 }
 
 # ========================
-# 視認性パラメータ
+# スコア
 # ========================
-VISIBLE_TIME = 1.2
-SPAWN_Y = -NOTE_HEIGHT
+SCORE_PERFECT = 1000
+SCORE_GREAT = 500
+SCORE_GOOD = 200
+SCORE_MISS = 0
+
+COMBO_MULTIPLIER = 1.02
+
+JUDGE_TEXT_DURATION = 0.45
+
+# ========================
+# 負荷対策
+# ========================
+MAX_VISIBLE_NOTES = 200
+
+# ========================
+# FPS
+# ========================
+TARGET_FPS = 60
+FPS = TARGET_FPS
+
+# ========================
+# 音量
+# ========================
+DEFAULT_BGM_VOLUME = 0.8
+DEFAULT_SE_VOLUME = 0.9

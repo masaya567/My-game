@@ -13,7 +13,7 @@ import time
 from songs.analysis.audio.audio_analyzer import analyze_songs
 from songs.loader.song_loader import get_songs_as_dict
 from exceptions import ResourceLoadError, ChartParseError
-from logger import get_logger
+from game.logger import get_logger
 
 logger = get_logger(__name__)
 

@@ -9,14 +9,14 @@ import pygame
 
 # プロジェクトルートをパスに追加
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.dont_write_bytecode = True
 
 from game.logger import GameLogger
 from manager.screen_manager import create_manager
+from constants import WIDTH, HEIGHT
 
 
 def main():
-    """ゲーム起動処理（起動専用）"""
-
     print("=" * 50)
     print("Piano Tiles - ゲーム起動")
     print("=" * 50)
@@ -25,20 +25,20 @@ def main():
     print("ESC キーで終了")
     print("=" * 50)
 
-    # ロガー初期化
     logger = GameLogger()
     logger.info("ゲーム起動開始")
 
-    # pygame 初期化
     pygame.init()
     pygame.mixer.init()
 
-    # ScreenManager 生成（画面初期化も内部で行われる）
+    # ★ 画面生成（必須）
+    pygame.display.set_mode((WIDTH, HEIGHT))
+
+    # ★ ScreenManager 生成
     manager = create_manager()
 
     clock = pygame.time.Clock()
 
-    # メインループ
     while True:
         dt = clock.tick(60) / 1000.0
 
@@ -50,6 +50,7 @@ def main():
 
             manager.handle_event(event)
 
+        # ★ 画面の更新（内部で song_time を増やす必要あり）
         manager.update(dt)
 
         screen = pygame.display.get_surface()

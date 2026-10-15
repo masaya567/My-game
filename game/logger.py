@@ -1,7 +1,8 @@
 """
-商用仕様：ログ管理モジュール（完全版）
+商用仕様：ログ管理モジュール（完全版・統合版）
 
 ゲーム全体の動作・エラー・イベントを記録する。
+日付ごとにログファイルを自動分割し、複数生成を防ぐ。
 """
 
 import logging
@@ -11,12 +12,30 @@ from datetime import datetime
 
 class GameLogger:
     """
-    商用仕様：ゲーム用ロガークラス
+    商用仕様：ゲーム用ロガークラス（完全統合版）
+    - 日付ごとにログファイルを自動生成
+    - 多重生成を防ぐ（Singleton）
+    - ファイル出力 + コンソール出力
     """
 
-    def __init__(self, log_dir="logs", log_file="game.log"):
+    _instance = None  # ★ 多重生成防止（Singleton）
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super(GameLogger, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self, log_dir="logs"):
+        # ★ すでに初期化済みなら何もしない（多重初期化防止）
+        if hasattr(self, "_initialized") and self._initialized:
+            return
+
         # ログディレクトリ作成
         os.makedirs(log_dir, exist_ok=True)
+
+        # ★ 日付ごとにログファイルを分割（商用品質）
+        today = datetime.now().strftime("%Y-%m-%d")
+        log_file = f"game_{today}.log"
         self.log_path = os.path.join(log_dir, log_file)
 
         # ロガー設定
@@ -38,30 +57,29 @@ class GameLogger:
         console_handler.setFormatter(formatter)
         console_handler.setLevel(logging.INFO)
 
-        # ハンドラ登録
-        self.logger.addHandler(file_handler)
-        self.logger.addHandler(console_handler)
+        # ハンドラ登録（多重登録防止）
+        if not self.logger.handlers:
+            self.logger.addHandler(file_handler)
+            self.logger.addHandler(console_handler)
 
         self.logger.info("=== Game Logger Initialized ===")
+
+        self._initialized = True
 
     # ============================================================
     # ログ出力メソッド
     # ============================================================
 
     def info(self, message):
-        """情報ログ"""
         self.logger.info(message)
 
     def warning(self, message):
-        """警告ログ"""
         self.logger.warning(message)
 
     def error(self, message):
-        """エラーログ"""
         self.logger.error(message)
 
     def debug(self, message):
-        """デバッグログ"""
         self.logger.debug(message)
 
     # ============================================================
@@ -77,7 +95,7 @@ class GameLogger:
         self.logger.info(msg)
 
     def log_exception(self, e):
-        """例外を記録"""
+        """例外を記録（トレースバック付き）"""
         self.logger.exception(f"Exception occurred: {e}")
 
     # ============================================================
@@ -85,8 +103,12 @@ class GameLogger:
     # ============================================================
 
     def close(self):
-        """ロガー終了処理"""
+        """ロガー終了処理（商用品質）"""
         self.logger.info("=== Game Logger Closed ===")
-        for handler in self.logger.handlers:
+        for handler in list(self.logger.handlers):
             handler.close()
             self.logger.removeHandler(handler)
+
+
+def get_logger(name=None):
+    return GameLogger()

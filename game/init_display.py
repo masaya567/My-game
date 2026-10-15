@@ -10,7 +10,7 @@
 
 import pygame
 from utils.common.utils import get_system_font
-from logger import get_logger
+from game.logger import get_logger
 from constants import WIDTH, HEIGHT
 
 logger = get_logger(__name__)

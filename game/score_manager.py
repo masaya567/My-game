@@ -5,7 +5,7 @@
 GameLogic から判定結果を受け取り、内部状態を更新する。
 """
 
-from game.constants import (
+from constants import (
     SCORE_PERFECT,
     SCORE_GREAT,
     SCORE_GOOD,

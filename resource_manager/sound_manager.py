@@ -6,6 +6,7 @@
 
 import pygame
 from pathlib import Path
+from typing import Optional
 
 
 class SoundManager:
@@ -20,14 +21,14 @@ class SoundManager:
         self.music_volume = 0.8
         self.effect_volume = 0.9
 
-        self.base_path = Path("assets/sounds")
+        self.base_path = Path(__file__).resolve().parent.parent / "assets" / "sounds"
         self.extensions = [".wav", ".ogg", ".mp3"]
 
     # ============================================================
     # ファイル探索
     # ============================================================
 
-    def _find_file(self, name: str) -> Path | None:
+    def _find_file(self, name: str) -> Optional[Path]:
         """複数拡張子を探索して最初に見つかった音声ファイルを返す"""
         base = self.base_path / name
 

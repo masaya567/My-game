@@ -1,5 +1,5 @@
 """
-商用仕様：ユーティリティ関数（完全版・プロジェクト統合）
+商用品質：ユーティリティ関数（完全版・プロジェクト統合）
 
 テキスト描画、譜面ロード、背景色、フォント取得などを統合。
 """
@@ -7,7 +7,7 @@
 import json
 import os
 import pygame
-from typing import List, Tuple, Optional, Dict
+from typing import Any, Dict, List, Optional, Tuple
 
 from constants import BLACK
 from utils.theme.theme import get_theme
@@ -51,23 +51,55 @@ def wrap_text(text: str, font: pygame.font.Font, max_width: int) -> List[str]:
 
 
 # ============================================================
-# 譜面ロード（songs/charts/ に対応）
+# 新仕様：譜面 JSON ローダー（SongModel 用）
 # ============================================================
 
 
-def load_chart(song: Dict[str, any], difficulty: str = "NORMAL") -> bool:
+def load_chart_json(chart_path: str) -> List[Dict]:
     """
-    JSON ファイルから譜面を読み込む（ファイルなければ自動生成）
+    商用品質：譜面 JSON ローダー（新 SongModel 用）
+    - chart_file をそのまま読み込む
+    - JSON が壊れていても安全に処理
+    - list[dict] を返す
+    """
+    if not os.path.exists(chart_path):
+        print(f"[ChartLoader] Chart file not found: {chart_path}")
+        return []
 
-    Args:
-        song: 曲データ辞書（song_model）
-        difficulty: 難易度（EASY, NORMAL, HARD, PRO）
+    try:
+        with open(chart_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        if isinstance(data, list):
+            return data
+        else:
+            print(f"[ChartLoader] Invalid chart format: {chart_path}")
+            return []
+
+    except Exception as e:
+        print(f"[ChartLoader] Failed to load chart: {e}")
+        return []
+
+
+# ============================================================
+# 旧仕様：songs/charts/ にある譜面を読み込む（互換用）
+# ============================================================
+
+
+def load_chart(song: Dict[str, Any], difficulty: str = "NORMAL") -> bool:
+    """
+    旧仕様：songs/charts/ にある譜面を読み込む（互換用）
+    SongModel 新仕様では使用しないが、互換性のため残す
     """
 
-    base = os.path.splitext(os.path.basename(song.file))[0]
+    song_file_path = getattr(song, "file_path", None) or getattr(song, "audio_file", None)
+    if not song_file_path:
+        song.chart = []
+        return False
+
+    base = os.path.splitext(os.path.basename(song_file_path))[0]
     chart_file = os.path.join("songs", "charts", f"{base}_chart.json")
 
-    # JSON が存在する場合
     if os.path.exists(chart_file):
         try:
             with open(chart_file, "r", encoding="utf-8") as f:
@@ -79,13 +111,13 @@ def load_chart(song: Dict[str, any], difficulty: str = "NORMAL") -> bool:
             song.chart = []
             return False
 
-    # JSON がない → 自動生成
     try:
-        from songs.chart.chart_generator import auto_generate_chart
+        from chart.generator.auto_chart_generator import auto_generate_chart
 
         chart = auto_generate_chart(song, difficulty)
         song.chart = chart
 
+        os.makedirs(os.path.dirname(chart_file), exist_ok=True)
         with open(chart_file, "w", encoding="utf-8") as f:
             json.dump(chart, f, ensure_ascii=False, indent=2)
 
@@ -104,7 +136,6 @@ def load_chart(song: Dict[str, any], difficulty: str = "NORMAL") -> bool:
 
 
 def get_combo_bg_color(combo: int) -> Tuple[int, int, int]:
-    """コンボに応じた背景色を返す（商用品質）"""
     if combo < 30:
         return (80, 120, 255)
     elif combo < 60:
@@ -123,7 +154,6 @@ def get_combo_bg_color(combo: int) -> Tuple[int, int, int]:
 
 
 def get_ui_colors() -> Dict[str, Tuple[int, int, int]]:
-    """現在のテーマカラー辞書を返す"""
     return get_theme()
 
 
@@ -133,7 +163,6 @@ def get_ui_colors() -> Dict[str, Tuple[int, int, int]]:
 
 
 def get_system_font() -> Optional[str]:
-    """システムフォント取得（日本語対応）"""
     possible_fonts = [
         r"C:\Windows\Fonts\meiryo.ttc",
         r"C:\Windows\Fonts\yugothb.ttc",

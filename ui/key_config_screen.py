@@ -14,7 +14,7 @@ class KeyConfigScreen(BaseScreen):
 
         # manager に保存されているキー設定を読み込む
         self.keys = ["Lane 1", "Lane 2", "Lane 3", "Lane 4"]
-        self.bindings = manager.key_config.copy()
+        self.bindings = manager.settings.get("key_config", {}).copy()
 
         self.index = 0
         self.waiting_input = False
@@ -133,6 +133,9 @@ class KeyConfigScreen(BaseScreen):
             # ESC → 保存して戻る
             elif event.key == pygame.K_ESCAPE:
                 # manager に保存
-                self.manager.key_config = self.bindings.copy()
+                self.manager.settings["key_config"] = self.bindings.copy()
+                save_settings = getattr(self.manager, "save_settings", None)
+                if callable(save_settings):
+                    save_settings()
                 self.play_se("se_back")
                 self.request_transition("settings")

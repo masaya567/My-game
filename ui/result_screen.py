@@ -1,7 +1,7 @@
 import pygame
 import random
 from ui.base_screen import BaseScreen
-from constants import WIDTH, HEIGHT, UI_COLORS, UI_SCALE
+from constants import WIDTH, HEIGHT, UI_COLORS, JUDGE_COLORS
 from graphics.effects.judge_ring import JudgeRing
 from graphics.effects.judge_burst import JudgeBurst
 from graphics.effects.glow_circle import GlowCircle
@@ -10,11 +10,11 @@ from utils.jacket.jacket_generator import load_jacket
 
 class ResultScreen(BaseScreen):
     """
-    商用品質：リザルト画面（全部入り）
+    商用品質：リザルト画面（最終統合版）
     - ランク演出（拡大 → 発光 → 光輪 → 爆発）
-    - スコアカウントアップ
+    - スコアカウントアップ（ease-out）
     - 背景光粒子
-    - 判定カードUI
+    - 判定カードUI（判定色と完全同期）
     - 曲ジャケット表示
     """
 
@@ -39,16 +39,16 @@ class ResultScreen(BaseScreen):
             self.rank_color = (255, 215, 0)
         elif self.accuracy >= 90:
             self.rank = "A"
-            self.rank_color = (120, 200, 255)
+            self.rank_color = JUDGE_COLORS["perfect"]
         elif self.accuracy >= 80:
             self.rank = "B"
-            self.rank_color = (120, 255, 180)
+            self.rank_color = JUDGE_COLORS["great"]
         elif self.accuracy >= 70:
             self.rank = "C"
-            self.rank_color = (255, 180, 120)
+            self.rank_color = JUDGE_COLORS["good"]
         else:
             self.rank = "D"
-            self.rank_color = (200, 100, 100)
+            self.rank_color = JUDGE_COLORS["miss"]
 
         # ランク演出
         self.rank_scale = 0.2
@@ -69,17 +69,9 @@ class ResultScreen(BaseScreen):
         # 曲ジャケット
         self.jacket = load_jacket(song["file"])
 
-    # ============================================================
-    # 画面開始時
-    # ============================================================
-
     def on_enter(self):
         super().on_enter()
         self.play_se("se_decide")
-
-    # ============================================================
-    # 更新処理
-    # ============================================================
 
     def update(self, dt):
 
@@ -94,8 +86,9 @@ class ResultScreen(BaseScreen):
         if self.rank_scale < 1.0:
             self.rank_scale += dt * 2.5
 
-        # ランク発光
-        self.rank_glow = min(255, self.rank_glow + dt * 300)
+        # ランク発光（ease-out）
+        t = min(self.rank_scale, 1.0)
+        self.rank_glow = int(255 * (t**0.5))
 
         # 光輪・爆発演出
         if self.rank_scale >= 1.0 and self.ring_effect is None:
@@ -111,10 +104,6 @@ class ResultScreen(BaseScreen):
         for p in self.particles:
             p.update(dt)
 
-    # ============================================================
-    # 描画処理
-    # ============================================================
-
     def draw(self, screen):
 
         # 背景
@@ -129,10 +118,10 @@ class ResultScreen(BaseScreen):
             jacket_surf = pygame.transform.smoothscale(self.jacket, (180, 180))
             screen.blit(jacket_surf, (WIDTH // 2 - 90, 40))
 
-        # ランク
+        # ランク文字
         font_rank = self.res.get_font(int(160 * self.rank_scale), weight="bold")
         rank_surf = font_rank.render(self.rank, True, self.rank_color)
-        rank_surf.set_alpha(int(self.rank_glow))
+        rank_surf.set_alpha(self.rank_glow)
         rank_rect = rank_surf.get_rect(center=(WIDTH // 2, 180))
         screen.blit(rank_surf, rank_rect)
 
@@ -144,21 +133,21 @@ class ResultScreen(BaseScreen):
 
         # スコア
         self.center_text(
-            screen, f"Score: {self.score_display}", size=48, y=340, color=(60, 120, 255)
+            screen, f"スコア: {self.score_display}", size=48, y=340, color=(60, 120, 255)
         )
 
         # 精度
         self.center_text(
-            screen, f"Accuracy: {self.accuracy:.2f}%", size=36, y=400, color=(60, 120, 255)
+            screen, f"精度: {self.accuracy:.2f}%", size=36, y=400, color=(60, 120, 255)
         )
 
-        # 判定カードUI
+        # 判定カードUI（判定色と完全同期）
         card_y = 460
         for label, value, color in [
-            ("Perfect", self.perfect, UI_COLORS["judge_perfect"]),
-            ("Great", self.great, UI_COLORS["judge_great"]),
-            ("Good", self.good, UI_COLORS["judge_good"]),
-            ("Miss", self.miss, UI_COLORS["judge_miss"]),
+            ("Perfect", self.perfect, JUDGE_COLORS["perfect"]),
+            ("Great", self.great, JUDGE_COLORS["great"]),
+            ("Good", self.good, JUDGE_COLORS["good"]),
+            ("Miss", self.miss, JUDGE_COLORS["miss"]),
         ]:
             pygame.draw.rect(
                 screen, (255, 255, 255), (WIDTH // 2 - 150, card_y, 300, 40), border_radius=10
@@ -166,16 +155,14 @@ class ResultScreen(BaseScreen):
             self.center_text(screen, f"{label}: {value}", size=26, y=card_y + 20, color=color)
             card_y += 50
 
-        # 続行ボタン
-        pygame.draw.rect(screen, (80, 120, 255), (WIDTH // 2 - 150, 620, 300, 50), border_radius=20)
-        self.center_text(screen, "SPACE → Continue", size=24, y=645, color=(255, 255, 255))
+        # 続行ボタン（UIテーマと統一）
+        pygame.draw.rect(
+            screen, UI_COLORS["button_selected"], (WIDTH // 2 - 150, 620, 300, 50), border_radius=20
+        )
+        self.center_text(screen, "Space で続ける", size=24, y=645, color=(255, 255, 255))
 
         # フェード
         self.draw_fade(screen)
-
-    # ============================================================
-    # 入力処理
-    # ============================================================
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:

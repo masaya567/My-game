@@ -6,6 +6,7 @@
 
 import pygame
 from pathlib import Path
+from typing import Optional
 
 
 class ImageManager:
@@ -24,7 +25,7 @@ class ImageManager:
     # ファイル探索
     # ============================================================
 
-    def _find_file(self, name: str) -> Path | None:
+    def _find_file(self, name: str) -> Optional[Path]:
         """複数拡張子を探索して最初に見つかったファイルを返す"""
         base = self.base_path / name
 

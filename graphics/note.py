@@ -1,93 +1,119 @@
+print("[DEBUG] Note loaded from:", __file__)
+
 import math
 import pygame
 from constants import (
     LANE_X,
     NOTE_START_Y,
-    BPM_SMOOTHING,
+    JUDGE_LINE,
+    NOTE_FALL_TIME,
 )
 
 from graphics.note_renderer import NoteRenderer
 
+FADE_OUT_DURATION = 0.45
+
 
 class Note:
     """
-    商用品質：NoteRenderer と完全同期した最終統合版 Note クラス
-    - ショートノーツ
-    - ロングノーツ（head / body / tail / shadow / beam）
+    商用品質：判定位置と描画位置を完全分離した最終統合版 Note クラス
+    - 判定ズレゼロ（プロセカ式）
+    - ショート／ロングノーツ
     - BPM変化対応
-    - speed対応
-    - プロセカ級落下フィール（イージング＋揺れ＋フェードイン）
+    - 揺れは描画のみ（判定に影響しない）
     """
 
     def __init__(self, lane, time, duration=0.0):
         self.lane = lane
-        self.time = time
-        self.duration = duration
+        self.time = float(time)
+        self.duration = float(duration)
+        self.tail_time = self.time + self.duration
 
-        self.is_long = duration > 0.0
+        self.is_long = self.duration > 0.0
         self.finished = False
+
         self.holding = False
         self.head_judged = False
-
-        # 座標
-        self.head_y = NOTE_START_Y
-        self.tail_y = NOTE_START_Y
+        self.tail_judged = False
 
         # 描画位置
         self.x = LANE_X[lane]
+        self.head_y = NOTE_START_Y
+        self.tail_y = NOTE_START_Y
 
-        # 視覚用アルファ
+        # 判定用位置（描画と分離）
+        self.judge_y = NOTE_START_Y
+
+        # アルファ
         self.alpha = 255
+        self.head_alpha = 255
+        self.tail_alpha = 255
 
-        # 描画統合クラス
-        self.renderer = NoteRenderer()
+        self.fade_out = False
+        self.fade_timer = 0.0
 
-    # ============================================================
-    # 座標更新（BPM変化＋speed＋プロセカ級落下フィール）
-    # ============================================================
+        self.renderer = NoteRenderer(self.lane, is_long=self.is_long)
 
-    def update(self, dt, song_time, bpm_events, base_speed, song_bpm):
-        # BPMスムージング（既存仕様）
-        bpm = song_bpm
-        for ev_time, ev_bpm in bpm_events:
-            if song_time >= ev_time:
-                bpm = bpm + (ev_bpm - bpm) * BPM_SMOOTHING
+        self.song_time = 0.0
+        self.bpm_events = []
+        self.base_speed = 1.0
+        self.song_bpm = 120
 
-        # BPM連動速度
-        drop_speed = base_speed * (bpm / 120.0)
-
-        # 進行度（0〜1）※判定タイミング self.time に向かって落ちる
-        progress = (song_time - self.time) * drop_speed
-        progress = max(0.0, min(1.0, progress))
-
-        # イージング（プロセカ寄りの指数カーブ）
-        ease = progress**1.12
-
-        # 微揺れ（±2px）
-        wobble = math.sin(song_time * 3.5) * 2
-
-        # 曲開始時フェードイン
-        self.alpha = min(255, int(song_time * 2 * 255))
-
-        # head の最終位置
-        self.head_y = NOTE_START_Y + ease * 900 + wobble
-
-        # ロングノーツ tail
+    def start_fade_out(self):
+        self.fade_out = True
+        self.fade_timer = 0.0
         if self.is_long:
-            end_time = self.time + self.duration
-
-            tail_progress = (song_time - end_time) * drop_speed
-            tail_progress = max(0.0, min(1.0, tail_progress))
-
-            tail_ease = tail_progress**1.12
-
-            self.tail_y = NOTE_START_Y + tail_ease * 900 + wobble
-
-            # ロングノーツの波動更新（既存ロジックと同期）
-            self.renderer.update_long(dt, self.holding)
+            self.head_alpha = 255
+            self.tail_alpha = 255
 
     # ============================================================
-    # 描画（NoteRenderer に委譲）
+    # 座標更新（判定位置と描画位置を分離）
+    # ============================================================
+    def update(self, dt, song_time=None, bpm_events=None, base_speed=None, song_bpm=None):
+
+        if song_time is not None:
+            self.song_time = song_time
+        if bpm_events is not None:
+            self.bpm_events = bpm_events
+        if base_speed is not None:
+            self.base_speed = base_speed
+        if song_bpm is not None:
+            self.song_bpm = song_bpm
+
+        distance = JUDGE_LINE - NOTE_START_Y
+        note_speed = distance / NOTE_FALL_TIME * max(0.01, self.base_speed)
+
+        # 判定位置
+        self.judge_y = JUDGE_LINE - (self.time - self.song_time) * note_speed
+
+        # 描画位置（揺れあり）
+        wobble = math.sin(self.song_time * 3.5) * 1.2
+        self.head_y = self.judge_y + wobble
+
+        if self.is_long:
+            self.tail_time = self.time + self.duration
+            tail_offset = (self.tail_time - self.time) * note_speed
+            self.tail_y = self.judge_y + tail_offset + wobble
+
+        if self.is_long and self.holding:
+            self.renderer.pulse_timer += max(0.0, dt) * 4.0
+        elif self.is_long:
+            self.renderer.pulse_timer = 0.0
+        self.renderer.update(dt, self.holding, self.renderer.pulse_timer)
+
+        # フェードアウト
+        if self.fade_out:
+            self.fade_timer += dt
+            fade_rate = 255.0 / FADE_OUT_DURATION
+            self.alpha = max(0, 255 - int(self.fade_timer * fade_rate))
+            if self.is_long:
+                self.head_alpha = self.alpha
+                self.tail_alpha = self.alpha
+            if self.alpha <= 0:
+                self.finished = True
+
+    # ============================================================
+    # 描画
     # ============================================================
 
     def draw(self, screen):
@@ -97,11 +123,5 @@ class Note:
         if not self.is_long:
             self.renderer.draw_short(screen, self.x, self.head_y, alpha=self.alpha)
         else:
-            self.renderer.draw_long(
-                screen,
-                self.x,
-                self.head_y,
-                self.tail_y,
-                holding=self.holding,
-                alpha=self.alpha,
-            )
+            height = self.tail_y - self.head_y
+            self.renderer.draw_long(screen, self.x, self.head_y, height, self.holding)

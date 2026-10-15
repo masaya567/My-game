@@ -44,14 +44,15 @@ class FontManager:
         key = (font_path, size, weight, italic)
 
         if key not in self.font_cache:
-            # フォント存在チェック
             if not font_path.exists():
-                print(f"[FontManager] Warning: Font not found → {font_path}")
-                font = pygame.font.SysFont(None, size)
+                fallback_font = pygame.font.match_font("meiryo") or pygame.font.get_default_font()
+                if fallback_font:
+                    font = pygame.font.Font(fallback_font, size)
+                else:
+                    font = pygame.font.SysFont(None, size)
             else:
                 font = pygame.font.Font(str(font_path), size)
 
-            # スタイル設定
             font.set_bold(weight == "bold")
             font.set_italic(italic)
 

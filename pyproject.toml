@@ -50,7 +50,11 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["piano_tiles"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["game*", "graphics*", "manager*", "resource_manager*", "songs*", "ui*", "utils*"]
 
 [tool.black]
 line-length = 100

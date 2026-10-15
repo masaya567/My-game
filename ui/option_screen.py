@@ -165,3 +165,6 @@ class OptionScreen(BaseScreen):
         """manager.settings に保存する"""
         for opt in self.options:
             self.manager.settings[opt["key"]] = opt["value"]
+        save_settings = getattr(self.manager, "save_settings", None)
+        if callable(save_settings):
+            save_settings()

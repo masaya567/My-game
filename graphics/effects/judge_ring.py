@@ -1,7 +1,7 @@
 """
-商用品質：判定リングエフェクトモジュール（完全版・最終形態）
+商用品質：判定リングエフェクトモジュール（完全版・色変化対応）
 
-ノーツ判定時にリング状の光を描画する。
+Perfect / Great / Good / Miss で色を変えて描画する。
 """
 
 import pygame
@@ -9,20 +9,24 @@ import pygame
 
 class JudgeRing:
     """
-    商用品質：判定リングエフェクトクラス
+    商用品質：判定リングエフェクトクラス（色変化対応）
     """
 
     def __init__(self, x: float, y: float, color=(120, 200, 255)):
+        if isinstance(x, (tuple, list)):
+            x, y = x
         self.x = x
         self.y = y
-        self.color = color
+        self.color = tuple(color[:3])  # ★ Perfect / Great / Good / Miss の色を受け取る
 
         self.alpha = 255
         self.radius = 0
         self.max_radius = 90
         self.thickness = 6
 
-        self.is_alive = True  # ★商用品質：生存判定
+        self.is_alive = True
+        size = self.max_radius * 2
+        self.surface = pygame.Surface((size, size), pygame.SRCALPHA)
 
     # ============================================================
     # 更新処理
@@ -41,14 +45,15 @@ class JudgeRing:
     # ============================================================
 
     def draw(self, screen: pygame.Surface) -> None:
-        """リングエフェクトを描画"""
         if not self.is_alive:
             return
 
         size = int(self.max_radius * 2)
-        ring_surface = pygame.Surface((size, size), pygame.SRCALPHA)
+        ring_surface = self.surface
+        ring_surface.fill((0, 0, 0, 0))
+        center = (size // 2, size // 2)
 
-        # --- 多層グロー（商用品質） ---
+        # --- 多層グロー（安全版） ---
         layers = 16
         for i in range(layers):
             ratio = 1 - (i / layers)
@@ -58,21 +63,21 @@ class JudgeRing:
             pygame.draw.circle(
                 ring_surface,
                 (*self.color, alpha),
-                (size // 2, size // 2),
+                center,
                 radius,
                 self.thickness,
             )
 
-        # --- 内側コアリング（加算合成） ---
-        core_surface = pygame.Surface((size, size), pygame.SRCALPHA)
         pygame.draw.circle(
-            core_surface,
+            ring_surface,
             (255, 255, 255, int(self.alpha * 0.8)),
-            (size // 2, size // 2),
+            center,
             int(self.radius),
             self.thickness,
         )
 
-        ring_surface.blit(core_surface, (0, 0), special_flags=pygame.BLEND_ADD)
-
-        screen.blit(ring_surface, (self.x - size // 2, self.y - size // 2))
+        screen.blit(
+            ring_surface,
+            (self.x - size // 2, self.y - size // 2),
+            special_flags=pygame.BLEND_ADD,
+        )
