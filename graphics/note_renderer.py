@@ -16,31 +16,106 @@ from graphics.long_beam import LongBeam
 
 from graphics.effects.hit_flash import HitFlash
 from graphics.effects.spark_particle import SparkParticle
+from utils.theme.theme import get_ui_scale
 
-_SHORT_NOTE_SURFACE_CACHE = {}
 
+# ============================================================
+# 商用品質：短ノーツ専用レンダラー（UI_SCALE＋pulse＋押し込み＋AA）
+# ============================================================
 
-def _get_short_note_surfaces(width, height):
-    key = (width, height)
-    surfaces = _SHORT_NOTE_SURFACE_CACHE.get(key)
-    if surfaces is not None:
-        return surfaces
+class ShortNoteRenderer:
+    def __init__(self, color=(255, 180, 180)):
+        self.scale = get_ui_scale()
+        self.base_color = tuple(color[:3])
+        self.radius = int(22 * self.scale)
+        self.timer = 0.0
+        self.pulse = 0.0
+        self.holding = False
+        self.alpha = 255
 
-    body = pygame.Surface((width, height), pygame.SRCALPHA)
-    for row in range(height):
-        ratio = row / max(1, height)
-        channel = int(255 * (0.85 + 0.15 * (1 - ratio)))
-        pygame.draw.line(body, (255, channel, channel), (0, row), (width - 1, row))
+        self.cached_base = None
+        self.cached_color = None
 
-    glow = pygame.Surface((width + 20, height + 20), pygame.SRCALPHA)
-    center = (glow.get_width() // 2, glow.get_height() // 2)
-    radii = (glow.get_width() // 2, glow.get_height() // 2)
-    pygame.gfxdraw.filled_ellipse(glow, *center, *radii, (255, 255, 255, 255))
-    pygame.gfxdraw.aaellipse(glow, *center, *radii, (255, 255, 255, 255))
+    def _build_cache(self, color):
+        color = tuple(int(c) for c in color[:3])
+        surf = pygame.Surface((self.radius * 2, self.radius * 2), pygame.SRCALPHA)
+        cx, cy = self.radius, self.radius
 
-    surfaces = body, glow
-    _SHORT_NOTE_SURFACE_CACHE[key] = surfaces
-    return surfaces
+        # 外側グロー（多層）
+        for i in range(14):
+            a = int(140 * (1 - i / 14))
+            pygame.gfxdraw.filled_circle(surf, cx, cy, self.radius + i, (*color, a))
+            pygame.gfxdraw.aacircle(surf, cx, cy, self.radius + i, (*color, a))
+
+        # コア光
+        pygame.gfxdraw.filled_circle(surf, cx, cy, int(self.radius * 0.75), (*color, 255))
+        pygame.gfxdraw.aacircle(surf, cx, cy, int(self.radius * 0.75), (*color, 255))
+
+        # 白い中心光
+        pygame.gfxdraw.filled_circle(surf, cx, cy, int(self.radius * 0.45), (255, 255, 255, 255))
+        pygame.gfxdraw.aacircle(surf, cx, cy, int(self.radius * 0.45), (255, 255, 255, 255))
+
+        self.cached_base = surf
+        self.cached_color = color
+
+    def update(self, dt, holding, pulse):
+        self.holding = holding
+        self.pulse = pulse
+
+        if pulse is not None:
+            self.timer = float(pulse)
+        elif holding:
+            self.timer += dt * 4
+        else:
+            self.timer = 0.0
+
+    def draw(self, screen, x, y):
+        color = self.base_color
+
+        if self.cached_base is None or self.cached_color != color:
+            self._build_cache(color)
+
+        surf = self.cached_base.copy()
+
+        wobble = math.sin(self.pulse * 3.5) * 4 * self.scale
+
+        if self.holding:
+            scale = 1.0 + (0.12 * math.sin(self.timer * 20))
+            size = int(self.radius * 2 * scale)
+            surf = pygame.transform.smoothscale(surf, (size, size))
+        else:
+            scale = 1.0
+            size = self.radius * 2
+
+        if self.holding:
+            pulse = (math.sin(self.timer) + 1) * 0.5
+            glow = pygame.Surface((size, size), pygame.SRCALPHA)
+            alpha = int(120 * pulse)
+
+            pygame.gfxdraw.filled_circle(
+                glow,
+                size // 2,
+                size // 2,
+                int(self.radius * scale),
+                (*color, alpha),
+            )
+            pygame.gfxdraw.aacircle(
+                glow,
+                size // 2,
+                size // 2,
+                int(self.radius * scale),
+                (*color, alpha),
+            )
+
+            surf.blit(glow, (0, 0), special_flags=pygame.BLEND_ADD)
+
+        surf.set_alpha(self.alpha)
+
+        screen.blit(
+            surf,
+            (x - size // 2 + wobble, y - size // 2),
+            special_flags=pygame.BLEND_ADD,
+        )
 
 
 class NoteRenderer:
@@ -59,12 +134,15 @@ class NoteRenderer:
 
         self.pulse_timer = 0.0
 
+        # 商用品質短ノーツレンダラー
+        self.short_renderer = ShortNoteRenderer()
+
         if is_long:
             self.long_head = LongHead()
             self.long_body = LongBody()
             self.long_tail = LongTail()
             self.long_shadow = LongShadow()
-            self.long_beam = LongBeam(width=LANE_WIDTH, y=NOTE_START_Y, lane_x=LANE_X[lane])
+            self.long_beam = LongBeam(width=LANE_WIDTH)
         else:
             self.long_head = None
             self.long_body = None
@@ -76,44 +154,40 @@ class NoteRenderer:
         self.spark_particles = []
 
     # ============================================================
-    # ショートノーツ描画（描画位置を head_y と完全一致）
+    # ショートノーツ描画（商用品質版）
     # ============================================================
 
-    def draw_short(self, screen, x, y, alpha=255):
-        w = LANE_WIDTH
-        h = self.short_height
-        body, glow = _get_short_note_surfaces(w, h)
-        glow.set_alpha(int(alpha * 0.35))
-        body.set_alpha(alpha)
-
-        screen.blit(glow, (x - w // 2 - 10, y - h // 2 - 10))
-        screen.blit(body, (x - w // 2, y - h // 2))
+    def draw_short(self, screen, x, y, alpha=255, holding=False, pulse=None):
+        self.short_renderer.alpha = alpha
+        self.short_renderer.update(0.0, holding, pulse if pulse is not None else self.pulse_timer)
+        self.short_renderer.draw(screen, x, y)
 
     # ============================================================
     # ロングノーツ描画（head_y / tail_y と完全同期）
     # ============================================================
 
     def draw_long(self, screen, x, head_y, height, holding):
-        # 描画順
         self.long_shadow.draw(screen, x, head_y, height, holding)
         self.long_body.draw(screen, x, head_y, height, holding)
         self.long_head.draw(screen, x, head_y, holding)
-
-        # ★ 修正：tail の描画位置を内部判定と完全一致
         self.long_tail.draw(screen, x, head_y + height, holding)
-
         self.long_beam.draw(screen, x=x, head_y=head_y, height=height, holding=holding)
-
         self.draw_particles(screen)
 
     def update(self, dt, holding=False, pulse=None):
         pulse = self.pulse_timer if pulse is None else pulse
+
         if self.is_long:
+            brightness = 1.0 if holding else 0.0
+            
             self.long_shadow.update(dt, holding, pulse)
             self.long_body.update(dt, holding, pulse)
             self.long_head.update(dt, holding, pulse)
             self.long_tail.update(dt, holding, pulse)
-            self.long_beam.update(dt, holding, pulse)
+            self.long_beam.update(dt, holding, pulse, brightness)
+
+        # 短ノーツ側の pulse も同期させたい場合はここで更新してもいい
+        self.short_renderer.update(dt, holding, pulse)
 
         if self.hit_flash:
             self.hit_flash.update(dt)

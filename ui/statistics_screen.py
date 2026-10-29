@@ -1,56 +1,104 @@
 import pygame
-from ui.base_screen import BaseScreen
-from constants import WIDTH, HEIGHT, UI_COLORS, UI_SCALE
 import json
 import os
+import sys
+from ui.base_screen import BaseScreen
+from constants import WIDTH, HEIGHT, UI_COLORS, UI_SCALE
 
+
+# ============================================================
+# ★ PyInstaller 対応 BASE_DIR
+# ============================================================
+
+def get_base_dir():
+    if hasattr(sys, "_MEIPASS"):
+        return sys._MEIPASS
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+BASE_DIR = get_base_dir()
+DATA_DIR = os.path.join(BASE_DIR, "data")
+SCORES_PATH = os.path.join(DATA_DIR, "scores.json")
+
+
+# ============================================================
+# ★ デフォルト統計データ
+# ============================================================
+
+DEFAULT_SCORES = {
+    "plays": 0,
+    "average_score": 0,
+    "records": []
+}
+
+
+# ============================================================
+# ★ scores.json の安全読み込み（破損自動復旧）
+# ============================================================
+
+def load_scores():
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+    # ファイルが無い → 新規作成
+    if not os.path.exists(SCORES_PATH):
+        save_scores(DEFAULT_SCORES)
+        return DEFAULT_SCORES.copy()
+
+    try:
+        with open(SCORES_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # 欠損項目を補完
+        for key, value in DEFAULT_SCORES.items():
+            if key not in data:
+                data[key] = value
+
+        # records が壊れている場合の補正
+        if not isinstance(data.get("records"), list):
+            data["records"] = []
+
+        return data
+
+    except Exception:
+        # JSON破損 → デフォルトで再生成
+        save_scores(DEFAULT_SCORES)
+        return DEFAULT_SCORES.copy()
+
+
+# ============================================================
+# ★ scores.json の安全保存
+# ============================================================
+
+def save_scores(data):
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(SCORES_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+    except Exception:
+        pass  # 書き込み失敗時はクラッシュさせない
+
+
+# ============================================================
+# ★ 統計画面（完全版）
+# ============================================================
 
 class StatisticsScreen(BaseScreen):
     """
-    商用仕様：統計画面（完全統合版）
-    BaseScreen のフェード・フォント・効果音・画面遷移を統合。
+    商用品質：統計画面（破損対策・アプリ化対応・完全統合版）
     """
 
     def __init__(self, manager):
         super().__init__(manager)
-        self.data = self.load_statistics()
+        self.data = load_scores()
 
         self.scroll_y = 0
         self.target_scroll_y = 0
-
-    # ============================================================
-    # データ読み込み
-    # ============================================================
-
-    def load_statistics(self):
-        path = os.path.join("data", "scores.json")
-        if not os.path.exists(path):
-            return {"plays": 0, "average_score": 0, "records": []}
-
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {"plays": 0, "average_score": 0, "records": []}
-
-    # ============================================================
-    # 画面開始時
-    # ============================================================
 
     def on_enter(self):
         super().on_enter()
         self.play_se("se_move")
 
-    # ============================================================
-    # 更新処理
-    # ============================================================
-
     def update(self, dt):
         self.scroll_y += (self.target_scroll_y - self.scroll_y) * dt * 10
-
-    # ============================================================
-    # 描画処理
-    # ============================================================
 
     def draw(self, screen):
         screen.fill(UI_COLORS["bg_select"])
@@ -89,26 +137,23 @@ class StatisticsScreen(BaseScreen):
         records = self.data.get("records", [])
 
         for i, rec in enumerate(records[-10:][::-1]):  # 最新10件を逆順で表示
-            text = f"{rec.get('title', 'Unknown')}  -  {rec.get('score', 0)} pts"
+            title = rec.get("title", "Unknown")
+            score = rec.get("score", 0)
+            text = f"{title}  -  {score} pts"
+
             surf = font.render(text, True, UI_COLORS["text_secondary"])
-            screen.blit(surf, (WIDTH // 2 - surf.get_width() // 2, y_base + i * int(40 * UI_SCALE)))
+            screen.blit(surf, (WIDTH // 2 - surf.get_width() // 2,
+                               y_base + i * int(40 * UI_SCALE)))
 
-        # フェード描画
         self.draw_fade(screen)
-
-    # ============================================================
-    # 入力処理
-    # ============================================================
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
 
-            # 戻る
             if event.key == pygame.K_ESCAPE:
                 self.play_se("se_back")
                 self.request_transition("title")
 
-            # スクロール
             elif event.key == pygame.K_DOWN:
                 self.target_scroll_y -= int(80 * UI_SCALE)
                 self.play_se("se_move")

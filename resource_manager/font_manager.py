@@ -4,8 +4,15 @@
 ゲーム内で使用するフォントを統一的に管理する。
 """
 
+import sys
+import os
 import pygame
 from pathlib import Path
+
+# ★ アプリ化対応：BASE_DIR / ASSETS_DIR / FONTS_DIR
+BASE_DIR = getattr(sys, "_MEIPASS", os.path.abspath(os.path.dirname(__file__)))
+ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+FONTS_DIR = os.path.join(ASSETS_DIR, "fonts")
 
 
 class FontManager:
@@ -17,14 +24,14 @@ class FontManager:
         pygame.font.init()
         self.font_cache = {}
 
-        # フォントパス
-        self.font_dir = Path("assets/fonts")
+        # ★ アプリ化対応パス
+        self.font_dir = Path(FONTS_DIR)
 
         self.font_files = {
             "regular": self.font_dir / "NotoSansJP-Regular.otf",
-            "bold": self.font_dir / "NotoSansJP-Bold.ttf",
-            "medium": self.font_dir / "NotoSansJP-Medium.ttf",
-            "light": self.font_dir / "NotoSansJP-Light.ttf",
+            "bold":    self.font_dir / "NotoSansJP-Bold.ttf",
+            "medium":  self.font_dir / "NotoSansJP-Medium.ttf",
+            "light":   self.font_dir / "NotoSansJP-Light.ttf",
         }
 
         # デフォルトフォント
@@ -37,10 +44,8 @@ class FontManager:
     def get(self, size: int, weight: str = "regular", italic: bool = False) -> pygame.font.Font:
         """指定フォントを取得（キャッシュ対応）"""
 
-        # フォントファイル選択
         font_path = self.font_files.get(weight, self.default_font)
 
-        # キャッシュキー
         key = (font_path, size, weight, italic)
 
         if key not in self.font_cache:
@@ -65,7 +70,6 @@ class FontManager:
     # ============================================================
 
     def render(self, text: str, size: int, color=(255, 255, 255), weight="regular", italic=False):
-        """テキストを描画してSurfaceを返す"""
         font = self.get(size, weight, italic)
         return font.render(text, True, color)
 

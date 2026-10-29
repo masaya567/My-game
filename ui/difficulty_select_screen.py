@@ -6,12 +6,7 @@ from utils.theme.theme import get_ui_scale
 
 class DifficultySelectScreen(BaseScreen):
     """
-    商用品質：難易度選択カード UI
-    - カード拡大
-    - 発光
-    - 影
-    - スライドアニメーション
-    - 難易度説明統合
+    商用品質：難易度選択カード UI（折り返し＋スクロール上限 完全版）
     """
 
     def __init__(self, manager, song):
@@ -19,7 +14,7 @@ class DifficultySelectScreen(BaseScreen):
         self.song = song
 
         self.difficulties = ["イージー", "ノーマル", "ハード", "エキスパート"]
-        self.index = 1  # ノーマルを初期選択
+        self.index = 1  # ノーマル初期選択
 
         self.scroll_y = 0
         self.target_scroll_y = 0
@@ -41,6 +36,26 @@ class DifficultySelectScreen(BaseScreen):
         }
 
     # ============================================================
+    # 折り返し処理（日本語対応）
+    # ============================================================
+
+    def wrap_text(self, text, font, max_width):
+        """文字幅で折り返す（日本語対応）"""
+        lines = []
+        current = ""
+        for ch in text:
+            test = current + ch
+            w, _ = font.size(test)
+            if w <= max_width:
+                current = test
+            else:
+                lines.append(current)
+                current = ch
+        if current:
+            lines.append(current)
+        return lines[:2]  # 最大2行まで
+
+    # ============================================================
     # 画面開始時
     # ============================================================
 
@@ -49,11 +64,12 @@ class DifficultySelectScreen(BaseScreen):
         self.play_se("se_move")
 
     # ============================================================
-    # 更新処理
+    # 更新処理（スクロール上限・下限）
     # ============================================================
 
     def update(self, dt):
-        self.scroll_y += (self.target_scroll_y - self.scroll_y) * dt * 10
+
+        pass
 
     # ============================================================
     # 描画処理
@@ -85,27 +101,22 @@ class DifficultySelectScreen(BaseScreen):
         )
 
         # カード UI
-        base_y = int(140 * scale) + self.scroll_y
+        base_y = int(160 * scale)
 
         for i, diff in enumerate(self.difficulties):
             is_selected = i == self.index
 
-            # カードサイズ
             card_w = int(WIDTH * 0.86)
             card_h = int(80 * scale)
             x = WIDTH // 2 - card_w // 2
             y = base_y + i * int(93 * scale)
 
-            # 選択中は拡大
             if is_selected:
                 card_w = int(card_w * 1.02)
                 card_h = int(card_h * 1.02)
                 x = WIDTH // 2 - card_w // 2
 
             rect = pygame.Rect(x, y, card_w, card_h)
-
-            # カード色
-            color = self.diff_colors[diff]
 
             # 影
             if is_selected:
@@ -114,9 +125,9 @@ class DifficultySelectScreen(BaseScreen):
                 screen.blit(shadow, (x + 6, y + 6))
 
             # カード本体
-            pygame.draw.rect(screen, color, rect, border_radius=12)
+            pygame.draw.rect(screen, self.diff_colors[diff], rect, border_radius=12)
 
-            # 枠線（選択中のみ発光）
+            # 発光
             if is_selected:
                 glow = pygame.Surface((card_w, card_h), pygame.SRCALPHA)
                 pygame.draw.rect(glow, (255, 255, 255, 180), glow.get_rect(), 4, border_radius=12)
@@ -127,11 +138,14 @@ class DifficultySelectScreen(BaseScreen):
             text = font.render(diff, True, (30, 30, 30))
             screen.blit(text, (x + 18, y + 10))
 
-            # 説明文
+            # 説明文（折り返し）
             font2 = self.res.get_font(16)
-            desc_text = self.fit_text(self.descriptions[diff], max_width=int(card_w - 40), size=16)
-            desc = font2.render(desc_text, True, (40, 40, 40))
-            screen.blit(desc, (x + 18, y + 42))
+            raw_desc = self.descriptions[diff]
+            lines = self.wrap_text(raw_desc, font2, max_width=int(card_w - 40))
+
+            for j, line in enumerate(lines):
+                desc = font2.render(line, True, (40, 40, 40))
+                screen.blit(desc, (x + 18, y + 42 + j * 18))
 
         # 操作説明
         self.center_text(
@@ -151,19 +165,14 @@ class DifficultySelectScreen(BaseScreen):
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
 
-            # 下キー
             if event.key == pygame.K_DOWN:
                 self.index = (self.index + 1) % len(self.difficulties)
-                self.target_scroll_y = -self.index * int(140 * UI_SCALE)
                 self.play_se("se_move")
 
-            # 上キー
             elif event.key == pygame.K_UP:
                 self.index = (self.index - 1) % len(self.difficulties)
-                self.target_scroll_y = -self.index * int(140 * UI_SCALE)
                 self.play_se("se_move")
 
-            # 決定
             elif event.key == pygame.K_RETURN:
                 selected_diff = self.difficulties[self.index]
                 self.song.chart_mode = selected_diff
@@ -174,15 +183,8 @@ class DifficultySelectScreen(BaseScreen):
                     "エキスパート": "expert",
                 }.get(selected_diff, "normal")
                 self.play_se("se_decide")
-                self.request_transition((
-                    "chart_preview",
-                    {
-                        "song": self.song,
-                        "difficulty": self.song.difficulty,
-                    }
-                ))
+                self.request_transition(("chart_preview", {"song": self.song, "difficulty": self.song.difficulty}))
 
-            # 戻る
             elif event.key == pygame.K_ESCAPE:
                 self.play_se("se_back")
                 self.request_transition("song_select")

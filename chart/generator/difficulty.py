@@ -1,88 +1,79 @@
 # ============================================================
-# 共通 DIFFICULTY（ベース値）
+# 共通 DIFFICULTY（ベース値）※市販音ゲー基準の完全版
 # ============================================================
 
 DIFFICULTY_BASE = {
-    "easy":   {"density": 0.45, "long_rate": 0.10, "rhythm_rate": 0.10, "variation": 0.05},
-    "normal": {"density": 0.58, "long_rate": 0.20, "rhythm_rate": 0.25, "variation": 0.15},
-    "hard":   {"density": 0.90, "long_rate": 0.32, "rhythm_rate": 0.45, "variation": 0.30},
-    "expert": {"density": 1.25, "long_rate": 0.12, "rhythm_rate": 0.45, "variation": 0.38},
+    "easy":   {"density": 0.18, "long_rate": 0.10, "rhythm_rate": 0.05, "variation": 0.02},
+    "normal": {"density": 0.26, "long_rate": 0.15, "rhythm_rate": 0.06, "variation": 0.03},
+    "hard":   {"density": 0.65, "long_rate": 0.22, "rhythm_rate": 0.22, "variation": 0.20},
+    "expert": {"density": 1.00, "long_rate": 0.35, "rhythm_rate": 0.30, "variation": 0.35},
 }
 
+
 # ============================================================
-# 曲別 DIFFICULTY（13曲すべて）
+# 曲別 DIFFICULTY（13曲すべて・最適化済み）
 # ============================================================
 
 SONG_DIFFICULTY = {
 
-    # 1. アラベスク第1番（123 BPM）
     "arabesque1": {
-        "normal": {"density": 0.60},
-        "hard":   {"density": 0.95},
-        "expert": {"density": 1.30},
+        "normal": {"density": 0.42},
+        "hard":   {"density": 0.75},
+        "expert": {"density": 1.10},
     },
 
-    # 2. 地獄のオルフェ（84 BPM）
     "aux-enfers": {
-        "easy":   {"density": 0.40},
-        "normal": {"density": 0.55},
-        "hard":   {"density": 0.85},
-        "expert": {"density": 1.25},
+        "easy":   {"density": 0.22},
+        "normal": {"density": 0.40},
+        "hard":   {"density": 0.70},
+        "expert": {"density": 1.05},
     },
 
-    # 3. カルメン前奏曲（126 BPM）
     "carmen": {
-        "normal": {"density": 0.62, "rhythm_rate": 0.30},
-        "hard":   {"density": 1.00, "rhythm_rate": 0.50},
-        "expert": {"density": 1.40, "variation": 0.55},
+        "normal": {"density": 0.45, "rhythm_rate": 0.18},
+        "hard":   {"density": 0.80, "rhythm_rate": 0.30},
+        "expert": {"density": 1.20, "variation": 0.45},
     },
 
-    # 4. エリーゼのために（74 BPM）
     "erize": {
-        "easy":   {"density": 0.35, "long_rate": 0.20},
-        "normal": {"density": 0.45, "long_rate": 0.30},
-        "hard":   {"density": 0.70, "long_rate": 0.40},
-        "expert": {"density": 1.00, "long_rate": 0.55},
+        "easy":   {"density": 0.20, "long_rate": 0.15},
+        "normal": {"density": 0.32, "long_rate": 0.20},
+        "hard":   {"density": 0.55, "long_rate": 0.30},
+        "expert": {"density": 0.90, "long_rate": 0.45},
     },
 
-    # 5. 幻想即興曲（161 BPM）
     "fantaisie": {
-        "normal": {"density": 0.70},
-        "hard":   {"density": 1.20, "variation": 0.40},
-        "expert": {"density": 1.60, "variation": 0.60},
+        "normal": {"density": 0.40},
+        "hard":   {"density": 0.85, "variation": 0.30},
+        "expert": {"density": 1.25, "variation": 0.50},
     },
 
-    # 6. G線上のアリア（60 BPM）
     "gline": {
-        "easy":   {"density": 0.25, "long_rate": 0.25},
-        "normal": {"density": 0.35, "long_rate": 0.35},
-        "hard":   {"density": 0.55, "long_rate": 0.45},
-        "expert": {"density": 0.80, "long_rate": 0.55},
+        "easy":   {"density": 0.18, "long_rate": 0.20},
+        "normal": {"density": 0.28, "long_rate": 0.25},
+        "hard":   {"density": 0.45, "long_rate": 0.35},
+        "expert": {"density": 0.70, "long_rate": 0.45},
     },
 
-    # 7. ハンガリー舞曲第5番（129 BPM）
     "hungarian5": {
-        "normal": {"density": 0.65, "rhythm_rate": 0.30},
-        "hard":   {"density": 1.05, "variation": 0.40},
-        "expert": {"density": 1.45, "variation": 0.60},
+        "normal": {"density": 0.48, "rhythm_rate": 0.18},
+        "hard":   {"density": 0.85, "variation": 0.30},
+        "expert": {"density": 1.20, "variation": 0.50},
     },
 
-    # 8. ラ・カンパネラ（172 BPM）
     "lacampanella": {
-        "normal": {"density": 0.70},
-        "hard":   {"density": 1.15, "variation": 0.45},
-        "expert": {"density": 1.55, "variation": 0.65},
+        "normal": {"density": 0.50},
+        "hard":   {"density": 0.90, "variation": 0.35},
+        "expert": {"density": 1.30, "variation": 0.55},
     },
 
-    # 9. 月光ソナタ第1楽章（58 BPM）
     "moonlight": {
-        "easy":   {"density": 0.25, "long_rate": 0.30},
-        "normal": {"density": 0.35, "long_rate": 0.40},
-        "hard":   {"density": 0.55, "long_rate": 0.50},
-        "expert": {"density": 0.80, "long_rate": 0.60},
+        "easy":   {"density": 0.18, "long_rate": 0.25},
+        "normal": {"density": 0.28, "long_rate": 0.30},
+        "hard":   {"density": 0.45, "long_rate": 0.40},
+        "expert": {"density": 0.70, "long_rate": 0.50},
     },
 
-    # 10. テスト曲（BPM 0）
     "music": {
         "easy":   {"density": 0.10},
         "normal": {"density": 0.20},
@@ -90,32 +81,29 @@ SONG_DIFFICULTY = {
         "expert": {"density": 0.40},
     },
 
-    # 11. 乙女の祈り（78 BPM）
     "otomenoinori": {
-        "easy":   {"density": 0.40},
-        "normal": {"density": 0.55},
-        "hard":   {"density": 0.85},
-        "expert": {"density": 1.20},
+        "easy":   {"density": 0.25},
+        "normal": {"density": 0.40},
+        "hard":   {"density": 0.70},
+        "expert": {"density": 1.05},
     },
 
-    # 12. トルコ行進曲（126 BPM）
     "trukish": {
-        "normal": {"density": 0.65, "rhythm_rate": 0.35},
-        "hard":   {"density": 1.05, "variation": 0.40},
-        "expert": {"density": 1.45, "variation": 0.60},
+        "normal": {"density": 0.48, "rhythm_rate": 0.20},
+        "hard":   {"density": 0.85, "variation": 0.30},
+        "expert": {"density": 1.20, "variation": 0.50},
     },
 
-    # 13. 別れの曲（99 BPM）
     "wakareno": {
-        "easy":   {"density": 0.40, "long_rate": 0.20},
-        "normal": {"density": 0.55, "long_rate": 0.30},
-        "hard":   {"density": 0.85, "long_rate": 0.40},
-        "expert": {"density": 1.20, "long_rate": 0.55},
+        "easy":   {"density": 0.25, "long_rate": 0.15},
+        "normal": {"density": 0.40, "long_rate": 0.20},
+        "hard":   {"density": 0.70, "long_rate": 0.30},
+        "expert": {"density": 1.05, "long_rate": 0.45},
     },
 }
 
 # ============================================================
-# 曲別 DIFFICULTY を適用する関数
+# 曲別 DIFFICULTY を適用する関数（完全版）
 # ============================================================
 
 def apply_style_params(base_params, difficulty, song_id):

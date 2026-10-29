@@ -4,9 +4,16 @@
 ゲーム内で使用する画像を統一的にロード・キャッシュ・取得する。
 """
 
+import sys
+import os
 import pygame
 from pathlib import Path
 from typing import Optional
+
+# ★ アプリ化対応：BASE_DIR / ASSETS_DIR / IMAGES_DIR
+BASE_DIR = getattr(sys, "_MEIPASS", os.path.abspath(os.path.dirname(__file__)))
+ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+IMAGES_DIR = os.path.join(ASSETS_DIR, "images")
 
 
 class ImageManager:
@@ -18,7 +25,9 @@ class ImageManager:
         self.image_cache = {}
         self.scaled_cache = {}
 
-        self.base_path = Path("assets/images")
+        # ★ ここが最重要：アプリ化対応パス
+        self.base_path = Path(IMAGES_DIR)
+
         self.extensions = [".png", ".jpg", ".jpeg", ".webp"]
 
     # ============================================================
@@ -54,7 +63,6 @@ class ImageManager:
         file_path = self._find_file(name)
         if file_path is None:
             print(f"[ImageManager] Warning: 画像が見つかりません → {name}")
-            # フォールバック：透明画像
             fallback = pygame.Surface((1, 1), pygame.SRCALPHA)
             self.image_cache[name] = fallback
             return fallback

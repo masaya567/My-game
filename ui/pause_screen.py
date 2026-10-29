@@ -106,12 +106,24 @@ class PauseScreen(BaseScreen):
                 if selected == "Resume":
                     pygame.mixer.music.unpause()
                     self.play_se("se_decide")
-                    self.request_transition(("gameplay", self.song))
+                    self.request_transition((
+                        "gameplay",
+                        {
+                            "song": self.song,
+                            "difficulty": getattr(self.song, "difficulty", "normal")
+                        }
+                    ))
 
                 elif selected == "Retry":
                     pygame.mixer.music.stop()
                     self.play_se("se_decide")
-                    self.request_transition(("gameplay", self.song))
+                    self.request_transition((
+                        "gameplay",
+                        {
+                            "song": self.song,
+                            "difficulty": getattr(self.song, "difficulty", "normal")
+                        }
+                    ))
 
                 elif selected == "Title":
                     pygame.mixer.music.stop()
@@ -122,4 +134,10 @@ class PauseScreen(BaseScreen):
             elif event.key == pygame.K_ESCAPE:
                 pygame.mixer.music.unpause()
                 self.play_se("se_back")
-                self.request_transition(("gameplay", self.song))
+                self.request_transition((
+                    "gameplay",
+                    {
+                        "song": self.song,
+                        "difficulty": getattr(self.song, "difficulty", "normal")
+                    }
+                ))

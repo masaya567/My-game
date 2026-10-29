@@ -2,20 +2,47 @@ from .beat_grid import BeatGrid
 from .difficulty import DIFFICULTY_BASE, apply_style_params
 from .peak_detector import PeakDetector
 import random
+import json
+import os
 
+# クラシック＋4レーン用レーンマップ
 LANE_MAP = {
-    "kick": 0,
-    "snare": 1,
-    "hihat": 2,
-    "melody": 3,
+    "low": 0,
+    "mid": 1,   # mid は後で 1/2 に分散
+    "high": 3,
 }
 
 PEAK_PRIORITY = {
-    "kick": 0,
-    "snare": 1,
-    "hihat": 2,
-    "melody": 3,
+    "low": 0,
+    "mid": 1,
+    "high": 2,
 }
+
+
+def normalize_notes(notes):
+    """
+    ロングノーツの範囲にあるタップノーツを整理する後処理。
+    - ロング中のタップを削除して、難易度の暴れを抑える
+    - レーンに関係なく「ロング＋タップの同時押し」を減らす
+    """
+    long_ranges = []
+    for n in notes:
+        if n.get("type") == "long":
+            long_ranges.append((float(n["time"]), float(n["end_time"])))
+
+    if not long_ranges:
+        return notes
+
+    normalized = []
+    for n in notes:
+        if n.get("type") == "tap":
+            t = float(n["time"])
+            # ロングの範囲内ならレーン問わず削除
+            if any(start <= t <= end for start, end in long_ranges):
+                continue
+        normalized.append(n)
+
+    return normalized
 
 
 class NoteBuilder:
@@ -51,22 +78,30 @@ class NoteBuilder:
             rhythm_rate  = float(local_params.get("rhythm_rate", 0.25))
             variation    = float(local_params.get("variation", 0.0))
 
+            # variation の暴れを抑える（NORMAL のみ）
+            if style == "normal":
+                variation = min(variation, 0.10)
+
             raw_time = float(candidate["time"])
             if raw_time < 0 or (song_duration and raw_time >= song_duration):
                 continue
 
             beat_step = (
                 0.25 if candidate.get("grid_generated")
-                else PeakDetector._beat_step(index, rhythm_rate)
+                else PeakDetector._beat_step(index, rhythm_rate, style)
             )
             note_time = grid.snap_time(raw_time, beat_step)
             if note_time < 0 or (song_duration and note_time >= song_duration):
                 continue
 
-            peak_type = candidate.get("peak_type", "kick")
+            peak_type = candidate.get("peak_type", "low")
 
-            base_lane = LANE_MAP.get(peak_type, 0)
+            base_lane = LANE_MAP.get(peak_type, 1)
             lane = prev_lane if prev_lane is not None else base_lane
+
+            # mid は中央 1/2 に分散
+            if peak_type == "mid":
+                lane = random.choice([1, 2])
 
             # variation によるレーン変化
             if variation > 0:
@@ -96,14 +131,21 @@ class NoteBuilder:
             })
 
         # ------------------------------------------------------------
-        # 2. density による間引き
+        # 2. density による間引き（改良版）
         # ------------------------------------------------------------
         filtered = []
         for r in records:
             local_params = r["_section_params"]
             density = float(local_params.get("density", 1.0))
-            if density >= 1.0 or random.random() <= density:
+
+            # NORMAL の密度を市販ゲーム基準に固定（最大 0.40）
+            if style == "normal":
+                density = min(density, 0.40)
+
+            keep_rate = min(1.0, density)
+            if random.random() <= keep_rate:
                 filtered.append(r)
+
         records = filtered
 
         # ------------------------------------------------------------
@@ -129,7 +171,7 @@ class NoteBuilder:
             records,
             key=lambda r: (
                 not bool(NoteBuilder._matching_sustain(r["time"], sustain, grid)),
-                r["peak_type"] != "melody",
+                r["peak_type"] != "high",  # メロディ優先でロング化
                 -r["strength"],
                 r["time"],
             ),
@@ -160,6 +202,7 @@ class NoteBuilder:
 
         for r in records:
             t = r["time"]
+            # ロング中は全レーンブロック（市販ゲーム寄り）
             if t <= blocked_until + 1e-7:
                 continue
 
@@ -170,6 +213,7 @@ class NoteBuilder:
                 if beats is not None:
                     end_time = grid.beat_to_time(grid.time_to_beat(t) + beats)
 
+                    # 短すぎるロングはタップに落とす
                     if end_time - t < 0.12:
                         output.append({
                             "lane": r["lane"],
@@ -198,6 +242,8 @@ class NoteBuilder:
                 "peak_type": r["peak_type"],
             })
 
+        # ロング中のタップ整理（市販寄り）
+        output = normalize_notes(output)
         return output
 
     # ------------------------------------------------------------
@@ -210,16 +256,16 @@ class NoteBuilder:
         if variation < 0.35:
             return start
 
-        # melody：上昇・下降階段
-        if peak_type == "melody":
+        # high：上昇・下降階段（メロディ）
+        if peak_type == "high":
             step = (index % 4) or 1
             if index % 2 == 0:
                 return (start + step) % 4
             else:
                 return (start - step) % 4
 
-        # ドラム：ジグザグ階段
-        if peak_type in ("kick", "snare", "hihat"):
+        # low / mid：ジグザグ階段
+        if peak_type in ("low", "mid"):
             if variation >= 0.50:
                 zigzag = [0, 2, 1, 3, 2, 0]
                 return zigzag[index % len(zigzag)]
@@ -263,3 +309,67 @@ class NoteBuilder:
                 return None
 
         return desired
+
+# ============================================================
+# ★ キャッシュ統合（完全版）
+# ============================================================
+def load_chart_cache(song_id, difficulty):
+    """譜面キャッシュ読み込み"""
+    path = f"cache/charts/{song_id}_{difficulty}.json"
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[NoteBuilder] Cache broken: {e}")
+    return None
+
+
+def save_chart_cache(song_id, difficulty, notes):
+    """譜面キャッシュ保存"""
+    os.makedirs("cache/charts", exist_ok=True)
+    with open(f"cache/charts/{song_id}_{difficulty}.json", "w", encoding="utf-8") as f:
+        json.dump(notes, f, ensure_ascii=False, indent=2)
+
+
+def build_chart_with_cache(
+    song,
+    difficulty,
+    candidates,
+    sustain,
+    style="normal",
+    difficulty_params=None,
+    beat_grid=None,
+    song_duration=None,
+):
+    """
+    譜面生成キャッシュ統合版
+    - 初回：生成して保存
+    - 2回目以降：キャッシュ読み込み
+    """
+    song_id = song.id
+
+    # ---- キャッシュ読み込み ----
+    cached = load_chart_cache(song_id, difficulty)
+    if cached:
+        print(f"[NoteBuilder] Loaded chart cache for {song_id} ({difficulty})")
+        return cached
+
+    print(f"[NoteBuilder] Generating chart for {song_id} ({difficulty})")
+
+    # ---- あなたの既存の譜面生成関数 ----
+    notes = NoteBuilder.build_sync_pro(
+        candidates=candidates,
+        sustain=sustain,
+        style=style,
+        song_id=song_id,
+        difficulty_params=difficulty_params,
+        beat_grid=beat_grid,
+        song_duration=song_duration,
+    )
+
+    # ---- キャッシュ保存 ----
+    save_chart_cache(song_id, difficulty, notes)
+    print(f"[NoteBuilder] Saved chart cache for {song_id} ({difficulty})")
+
+    return notes

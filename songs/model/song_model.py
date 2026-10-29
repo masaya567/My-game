@@ -103,7 +103,7 @@ class Song:
             self.audio_analyzer.ensure_audio()
 
             # BPM解析（重複防止）
-            if not hasattr(self.audio_analyzer, "bpm") or self.audio_analyzer.bpm is None:
+            if self.audio_analyzer.bpm is None:
                 self.audio_analyzer.analyze_bpm()
 
             self.bpm = float(self.audio_analyzer.bpm or self.bpm)

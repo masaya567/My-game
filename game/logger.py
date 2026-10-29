@@ -112,3 +112,23 @@ class GameLogger:
 
 def get_logger(name=None):
     return GameLogger()
+
+# ============================================================
+# ロングノーツ専用ログ（1ファイルにまとめる）
+# ============================================================
+
+LONG_LOG_FILE = os.path.join("logs", "long_notes.log")
+
+long_logger = logging.getLogger("LongLogger")
+long_logger.setLevel(logging.INFO)
+
+long_formatter = logging.Formatter(
+    "[%(asctime)s] [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S"
+)
+
+long_handler = logging.FileHandler(LONG_LOG_FILE, encoding="utf-8")
+long_handler.setFormatter(long_formatter)
+long_handler.setLevel(logging.INFO)
+
+if not long_logger.handlers:
+    long_logger.addHandler(long_handler)

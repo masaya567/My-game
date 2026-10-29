@@ -1,22 +1,21 @@
 import pygame
 import math
 from ui.base_screen import BaseScreen
-from constants import WIDTH, UI_COLORS
+from constants import WIDTH, HEIGHT, UI_COLORS
 from utils.theme.theme import get_ui_scale
 
 
 class TitleScreen(BaseScreen):
     """
-    商用仕様：タイトル画面（4項目メニュー付き）
+    商用仕様：タイトル画面（4項目メニュー付き・完全版）
     """
 
     def __init__(self, manager):
         super().__init__(manager)
         self.timer = 0.0
         self.alpha = 255
-        self.fade_dir = -1  # 点滅方向
+        self.fade_dir = -1
 
-        # ★ 4つの項目
         self.menu_items = [
             ("ゲームスタート", "song_select"),
             ("あそびかた", "how_to_play_screen"),
@@ -25,14 +24,18 @@ class TitleScreen(BaseScreen):
         ]
         self.menu_index = 0
 
+        self.scale = get_ui_scale()
+
     def on_enter(self):
         super().on_enter()
+        self.set_background(UI_COLORS["bg_title"])
         self.play_se("se_move")
+        self.scale = get_ui_scale()
 
     def update(self, dt):
         self.timer += dt
 
-        # 「PRESS ENTER」点滅アニメーション
+        # PRESS ENTER 点滅
         self.alpha += self.fade_dir * 300 * dt
         if self.alpha <= 50:
             self.alpha = 50
@@ -42,16 +45,16 @@ class TitleScreen(BaseScreen):
             self.fade_dir = -1
 
     def draw(self, screen):
-        scale = get_ui_scale()
-        screen.fill(UI_COLORS["bg_title"])
+        scale = self.scale
+        screen.blit(self.bg_surface, (0, 0))
 
         # タイトルロゴ（揺れ）
         offset = math.sin(self.timer * 2.0) * 5 * scale
         self.center_text(
             screen,
             "ピアノリズム",
-            size=52,
-            y=int(150 * scale + offset),
+            size=int(52 * scale),
+            y=int(140 * scale + offset),
             color=UI_COLORS["title_glow"],
             weight="bold",
         )
@@ -60,61 +63,72 @@ class TitleScreen(BaseScreen):
         self.center_text(
             screen,
             "クラシックエディション",
-            size=26,
-            y=int(220 * scale),
+            size=int(26 * scale),
+            y=int(210 * scale),
             color=UI_COLORS["text_secondary"],
         )
 
-        # ★ メニュー描画（4項目）
-        base_y = int(300 * scale)
+        # ============================================================
+        # ★ メニュー群の中央配置（市販仕様）
+        # ============================================================
+        item_h = int(55 * scale)
+        total_h = len(self.menu_items) * item_h
+        base_y = HEIGHT // 2 - total_h // 2
+
         for i, (label, _) in enumerate(self.menu_items):
 
-            # 選択中の背景ハイライト
+            # ★ Rect を毎フレーム生成（ズレ防止）
+            rect = pygame.Rect(
+                WIDTH // 2 - int(160 * scale),
+                base_y + i * item_h,
+                int(320 * scale),
+                item_h
+            )
+
+            # ハイライト
             if i == self.menu_index:
-                highlight_rect = pygame.Rect(
-                    WIDTH // 2 - int(160 * scale),
-                    base_y + int(i * 55 * scale) - int(5 * scale),
-                    int(320 * scale),
-                    int(45 * scale),
-                )
                 pygame.draw.rect(
                     screen,
-                    UI_COLORS["menu_highlight"],  # constants.py に追加
-                    highlight_rect,
+                    UI_COLORS["menu_highlight"],
+                    rect,
                     border_radius=8,
                 )
 
-            color = (
-                UI_COLORS["text_primary"]
-                if i == self.menu_index
-                else UI_COLORS["text_secondary"]
-            )
-            size = 34 if i == self.menu_index else 28
+            # テキスト
+            color = UI_COLORS["text_primary"] if i == self.menu_index else UI_COLORS["text_secondary"]
+            size = int(34 * scale) if i == self.menu_index else int(28 * scale)
 
             self.center_text(
                 screen,
                 label,
                 size=size,
-                y=base_y + int(i * 55 * scale),
+                y=base_y + i * item_h,
                 color=color,
                 weight="bold" if i == self.menu_index else None,
             )
 
-        # PRESS ENTER（点滅）
-        font = self.res.get_font(28)
-        press = font.render(
-            "Enterで決定",
-            True,
-            (*UI_COLORS["text_primary"], int(self.alpha)),
+        # ============================================================
+        # ★ PRESS ENTER（メニューの下に黄金比で配置）
+        # ============================================================
+        press_y = base_y + total_h + int(80 * scale)
+
+        bg_r, bg_g, bg_b = UI_COLORS["bg_title"]
+        brightness = (bg_r + bg_g + bg_b) / 3
+        text_color = (255, 255, 255) if brightness < 128 else (20, 20, 20)
+
+        press = self.get_text("Enterで決定", int(28 * scale), text_color)
+        press.set_alpha(int(self.alpha))
+
+        screen.blit(
+            press,
+            (WIDTH // 2 - press.get_width() // 2, press_y)
         )
-        screen.blit(press, (WIDTH // 2 - press.get_width() // 2, int(520 * scale)))
 
         self.draw_fade(screen)
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
 
-            # 上下移動
             if event.key == pygame.K_UP:
                 self.menu_index = (self.menu_index - 1) % len(self.menu_items)
                 self.play_se("se_move")
@@ -123,7 +137,6 @@ class TitleScreen(BaseScreen):
                 self.menu_index = (self.menu_index + 1) % len(self.menu_items)
                 self.play_se("se_move")
 
-            # 決定
             elif event.key == pygame.K_RETURN:
                 label, action = self.menu_items[self.menu_index]
                 self.play_se("se_decide")
@@ -133,7 +146,3 @@ class TitleScreen(BaseScreen):
                     exit()
                 else:
                     self.request_transition(action)
-
-            # ESC はタイトルでは無効
-            elif event.key == pygame.K_ESCAPE:
-                pass

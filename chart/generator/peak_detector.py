@@ -1,6 +1,7 @@
 from bisect import bisect_left
 from math import ceil
 import numpy as np
+import random
 
 
 class PeakDetector:
@@ -12,6 +13,7 @@ class PeakDetector:
         beat_grid=None,
         song_duration=None,
         rhythm_rate=0.25,
+        style="normal"
     ):
         onsets = getattr(analyzer, "onsets", [])
         centroids = getattr(analyzer, "centroid", {})
@@ -21,9 +23,8 @@ class PeakDetector:
         density = max(0.01, float(density))
 
         for idx, (t, strength) in enumerate(onsets):
-
-            # density による間引き
-            if density < 1.0 and int((idx + 1) * density) == int(idx * density):
+            # density による確率間引き（市販音ゲー寄り）
+            if density < 1.0 and random.random() > density:
                 continue
 
             t = float(t)
@@ -34,7 +35,6 @@ class PeakDetector:
                 norm_c = np.clip((c - 500) / 2500, -1.0, 1.0)
                 t += norm_c * 0.01
 
-            # onset_strength + centroid + band_energy の複合判定
             onset_strength = strength
             centroid_value = centroids.get(round(t, 3), 0.0)
 
@@ -46,12 +46,16 @@ class PeakDetector:
                 centroid_value,
             )
 
+            # クラシック＋4レーン用レーン割り当て
             lane = {
-                "kick": 0,
-                "snare": 1,
-                "hihat": 2,
-                "melody": 3,
-            }.get(peak_type, 0)
+                "low": 0,
+                "mid": 1,
+                "high": 3,
+            }.get(peak_type, 1)
+
+            # mid は 1/2 に分散して中央を使う
+            if peak_type == "mid":
+                lane = random.choice([1, 2])
 
             candidates.append(
                 {
@@ -62,14 +66,14 @@ class PeakDetector:
                 }
             )
 
-        # density > 1.0 の追加ノーツ生成（既存ロジック）
+        # density > 1.0 の追加ノーツ生成（既存ロジック＋市販音ゲー寄り）
         if density > 1.0 and beat_grid is not None and song_duration is not None and candidates:
             occupied_times = set()
             for index, candidate in enumerate(candidates):
                 step = (
                     0.25
                     if candidate.get("grid_generated")
-                    else PeakDetector._beat_step(index, rhythm_rate)
+                    else PeakDetector._beat_step(index, rhythm_rate, style)
                 )
                 occupied_times.add(round(beat_grid.snap_time(candidate["time"], step), 6))
 
@@ -88,22 +92,27 @@ class PeakDetector:
                     centroids.get(round(grid_time, 3), 0.0),
                 )
 
+                # low/mid/melody から最大強度を取る
                 strength = max(
                     bands.get(name, {}).get(PeakDetector._nearest_time(band_times, grid_time), 0.0)
-                    for name in ("kick", "snare", "hihat", "melody")
+                    for name in ("low", "mid", "melody")
                 )
                 if strength <= 0:
                     continue
 
+                lane = {
+                    "low": 0,
+                    "mid": 1,
+                    "high": 3,
+                }.get(peak_type, 1)
+
+                if peak_type == "mid":
+                    lane = random.choice([1, 2])
+
                 extra_candidates.append(
                     {
                         "time": grid_time,
-                        "lane": {
-                            "kick": 0,
-                            "snare": 1,
-                            "hihat": 2,
-                            "melody": 3,
-                        }.get(peak_type, 0),
+                        "lane": lane,
                         "peak_type": peak_type,
                         "strength": strength,
                         "grid_generated": True,
@@ -118,37 +127,37 @@ class PeakDetector:
     @staticmethod
     def _classify_peak(bands, t, band_times, onset_strength, centroid_value):
         """
-        peak_type 強化版（複合判定）
-        - 帯域エネルギー
-        - onset_strength
-        - spectral_centroid
+        クラシック向け peak_type 判定
+        - low / mid / high に分類
+        - 帯域エネルギー + onset_strength + spectral_centroid
         """
-
         sample_time = PeakDetector._nearest_time(band_times, t)
 
-        kick = bands.get("kick", {}).get(sample_time, 0.0)
-        snare = bands.get("snare", {}).get(sample_time, 0.0)
-        hihat = bands.get("hihat", {}).get(sample_time, 0.0)
-        melody = bands.get("melody", {}).get(sample_time, 0.0)
+        low  = bands.get("low", {}).get(sample_time, 0.0)
+        mid  = bands.get("mid", {}).get(sample_time, 0.0)
+        high = bands.get("melody", {}).get(sample_time, 0.0)
 
-        # 複合スコア
-        kick_score   = kick   * 1.2 + onset_strength * 0.8
-        snare_score  = snare  * 1.1 + onset_strength * 0.6
-        hihat_score  = hihat  * 1.0 + centroid_value * 0.7
-        melody_score = melody * 1.0 + centroid_value * 0.5
+        low_score  = low  * 1.2 + onset_strength * 0.5
+        mid_score  = mid  * 1.1 + onset_strength * 0.6
+        high_score = high * 1.3 + centroid_value * 0.7
 
         scores = {
-            "kick": kick_score,
-            "snare": snare_score,
-            "hihat": hihat_score,
-            "melody": melody_score,
+            "low":  low_score,
+            "mid":  mid_score,
+            "high": high_score,
         }
 
         return max(scores, key=scores.get)
 
     @staticmethod
-    def _beat_step(index, rhythm_rate):
-        fine_slots = int(round(max(0.0, min(1.0, float(rhythm_rate))) * 4))
+    def _beat_step(index, rhythm_rate, style="normal"):
+        rr = max(0.0, min(1.0, float(rhythm_rate)))
+
+        # NORMAL だけ弱体化
+        if style == "normal":
+            rr *= 0.8
+
+        fine_slots = int(round(rr * 4))
         phase = index % 4
         if phase < fine_slots:
             return 0.25

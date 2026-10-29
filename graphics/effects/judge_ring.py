@@ -1,15 +1,16 @@
 """
-商用品質：判定リングエフェクトモジュール（完全版・色変化対応）
+商用品質：判定リングエフェクトモジュール（UI_SCALE対応・完全版）
 
 Perfect / Great / Good / Miss で色を変えて描画する。
 """
 
 import pygame
+from utils.theme.theme import get_ui_scale
 
 
 class JudgeRing:
     """
-    商用品質：判定リングエフェクトクラス（色変化対応）
+    商用品質：判定リングエフェクトクラス（色変化＋UI_SCALE対応）
     """
 
     def __init__(self, x: float, y: float, color=(120, 200, 255)):
@@ -17,14 +18,19 @@ class JudgeRing:
             x, y = x
         self.x = x
         self.y = y
-        self.color = tuple(color[:3])  # ★ Perfect / Great / Good / Miss の色を受け取る
+        self.color = tuple(color[:3])  # RGBのみ
 
+        # ★ UI_SCALE 対応
+        self.scale = get_ui_scale()
+
+        # ★ スケール対応したパラメータ
         self.alpha = 255
         self.radius = 0
-        self.max_radius = 90
-        self.thickness = 6
+        self.max_radius = int(90 * self.scale)
+        self.thickness = int(6 * self.scale)
 
         self.is_alive = True
+
         size = self.max_radius * 2
         self.surface = pygame.Surface((size, size), pygame.SRCALPHA)
 
@@ -33,9 +39,11 @@ class JudgeRing:
     # ============================================================
 
     def update(self, dt: float) -> None:
-        """時間経過に応じてリングを更新"""
-        self.radius += 420 * dt
-        self.alpha = max(0, self.alpha - 520 * dt)
+        """時間経過に応じてリングを更新（UI_SCALE対応）"""
+
+        # ★ スケール対応した速度
+        self.radius += 420 * self.scale * dt
+        self.alpha = max(0, self.alpha - 520 * self.scale * dt)
 
         if self.alpha <= 0 or self.radius >= self.max_radius:
             self.is_alive = False
@@ -53,12 +61,12 @@ class JudgeRing:
         ring_surface.fill((0, 0, 0, 0))
         center = (size // 2, size // 2)
 
-        # --- 多層グロー（安全版） ---
+        # --- 多層グロー（UI_SCALE対応） ---
         layers = 16
         for i in range(layers):
             ratio = 1 - (i / layers)
             alpha = int(self.alpha * ratio)
-            radius = int(self.radius + i * 2)
+            radius = int(self.radius + i * (2 * self.scale))
 
             pygame.draw.circle(
                 ring_surface,
@@ -68,6 +76,7 @@ class JudgeRing:
                 self.thickness,
             )
 
+        # --- 内側コアリング ---
         pygame.draw.circle(
             ring_surface,
             (255, 255, 255, int(self.alpha * 0.8)),

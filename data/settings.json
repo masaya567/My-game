@@ -1,0 +1,16 @@
+{
+  "theme_color": "Blue",
+  "ui_scale": 1.0,
+  "note_speed": 1.0,
+  "master_volume": 100,
+  "key_config": {
+    "Lane 1": 100,
+    "Lane 2": 102,
+    "Lane 3": 106,
+    "Lane 4": 107
+  },
+  "judge_timing": 0.3,
+  "note_size": 15,
+  "bg_brightness": 0.8,
+  "theme": "Blue"
+}

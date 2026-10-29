@@ -1,7 +1,7 @@
 import math
 import pygame
 import colorsys
-from constants import WIDTH, HEIGHT, JUDGE_LINE, LANE_WIDTH
+from constants import WIDTH, HEIGHT, JUDGE_LINE, LANE_WIDTH, UI_SCALE
 
 
 def _clamp_alpha(value):
@@ -9,19 +9,12 @@ def _clamp_alpha(value):
 
 
 def _get_lane_positions(screen_obj):
-    """
-    レーンの X 座標配列を返す。
-    - GameplayScreen.lane_x があればそれを優先
-    - なければ constants.LANE_X を参照
-    - それもなければ WIDTH から等間隔で生成
-    """
     lane_x = getattr(screen_obj, "lane_x", None)
     if lane_x is not None:
         return lane_x
 
     try:
         from constants import LANE_X
-
         return LANE_X
     except Exception:
         pass
@@ -32,8 +25,13 @@ def _get_lane_positions(screen_obj):
 
 
 def draw_gameplay(screen_obj, screen):
+    # ============================================================
     # 背景
-    screen.fill((20, 20, 20))
+    # ============================================================
+    if hasattr(screen_obj, "lane_bg_surface"):
+        screen.blit(screen_obj.lane_bg_surface, (0, 0))
+    else:
+        screen.fill((20, 20, 20))
 
     song = getattr(screen_obj, "song", None)
     bpm = getattr(getattr(song, "audio_analyzer", None), "bpm", 120)
@@ -50,29 +48,30 @@ def draw_gameplay(screen_obj, screen):
     line_flash = getattr(screen_obj, "line_flash", 0.0)
     line_flash_lane = getattr(screen_obj, "line_flash_lane", None)
 
-    # BPM 脈動
+    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+
+    # ============================================================
+    # BPM 脈動 / フィーバー / コンボ虹色フラッシュ
+    # ============================================================
     if bg_pulse_strength > 0.0:
         pulse = (math.sin(bg_pulse * pulse_speed) * 0.5 + 0.5) * bg_pulse_strength
-        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         overlay.fill((80, 120, 255, _clamp_alpha(pulse)))
         screen.blit(overlay, (0, 0))
 
-    # フィーバー
     if fever_strength > 0.0:
-        fever_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         fever_pulse = (math.sin(fever_phase) * 0.5 + 0.5) * fever_strength
-        fever_overlay.fill((255, 200, 80, _clamp_alpha(fever_pulse)))
-        screen.blit(fever_overlay, (0, 0))
+        overlay.fill((255, 200, 80, _clamp_alpha(fever_pulse)))
+        screen.blit(overlay, (0, 0))
 
-    # コンボ虹色フラッシュ
     if combo_flash > 0.1:
-        flash_overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
         hue = math.sin(combo_flash_phase) * 0.5 + 0.5
         r, g, b = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
-        flash_overlay.fill((int(r * 255), int(g * 255), int(b * 255), _clamp_alpha(combo_flash)))
-        screen.blit(flash_overlay, (0, 0))
+        overlay.fill((int(r * 255), int(g * 255), int(b * 255), _clamp_alpha(combo_flash)))
+        screen.blit(overlay, (0, 0))
 
-    # 判定ライン
+    # ============================================================
+    # 判定ライン（UI_SCALE 対応）
+    # ============================================================
     lane_colors = [
         (255, 120, 120),
         (120, 255, 120),
@@ -87,46 +86,104 @@ def draw_gameplay(screen_obj, screen):
     if fever_strength > 0.5:
         line_color = (255, 220, 120)
 
-    # BPM に同期した揺れ（視認性重視）
     wobble = math.sin(getattr(screen_obj, "song_time", 0.0) * (bpm / 240.0)) * 1.2
-    offset = int(math.sin(line_wave) * line_wave_strength + wobble)
+    offset = int((math.sin(line_wave) * line_wave_strength + wobble) * UI_SCALE)
 
-    pygame.draw.line(
-        screen,
-        line_color,
-        (0, int(JUDGE_LINE + offset)),
-        (WIDTH, int(JUDGE_LINE + offset)),
-        4,
-    )
+    if hasattr(screen_obj, "judge_line_surface"):
+        surf = screen_obj.judge_line_surface
+        surf.fill((*line_color, 220))
+        screen.blit(surf, (0, int(JUDGE_LINE + offset)))
+    else:
+        pygame.draw.line(
+            screen,
+            line_color,
+            (0, int(JUDGE_LINE + offset)),
+            (WIDTH, int(JUDGE_LINE + offset)),
+            int(4 * UI_SCALE),
+        )
 
-    # レーンフラッシュ
+    # ============================================================
+    # レーンフラッシュ（UI_SCALE 対応）
+    # ============================================================
     if line_flash > 1.0:
         lane_x_positions = _get_lane_positions(screen_obj)
         if line_flash_lane is not None and 0 <= line_flash_lane < len(lane_x_positions):
             lane_x = lane_x_positions[line_flash_lane]
-            flash = pygame.Surface((LANE_WIDTH, 40), pygame.SRCALPHA)
-            flash.fill((255, 255, 255, _clamp_alpha(line_flash)))
-            screen.blit(flash, (lane_x - LANE_WIDTH // 2, int(JUDGE_LINE + offset - 20)))
+            surf = screen_obj.lane_flash_surface
+            surf.set_alpha(_clamp_alpha(line_flash))
+            screen.blit(
+                surf,
+                (
+                    lane_x - int(LANE_WIDTH * UI_SCALE) // 2,
+                    int(JUDGE_LINE + offset - 20 * UI_SCALE),
+                ),
+            )
 
-    # ノーツ描画（Z-order 安定化）
+    # ============================================================
+    # ノーツ描画（UI_SCALE 対応）
+    # ============================================================
     notes = getattr(logic, "notes", []) if logic else []
 
     long_notes = [n for n in notes if getattr(n, "is_long", False)]
     tap_notes = [n for n in notes if not getattr(n, "is_long", False)]
 
+    # ロングノート
     for note in long_notes:
         try:
-            note.draw(screen)
+            x = getattr(note, "x", None)
+            head_y = getattr(note, "head_y", None)
+            tail_y = getattr(note, "tail_y", None)
+            if x is None or head_y is None or tail_y is None:
+                continue
+
+            cx = x - screen_obj.long_head.get_width() // 2
+
+            screen.blit(screen_obj.long_head, (cx, head_y))
+
+            top_y = min(head_y, tail_y)
+            body_h = abs(tail_y - head_y)
+
+            if body_h <= 0:
+                screen.blit(screen_obj.long_tail, (cx, tail_y))
+                continue
+
+            max_body_h = screen_obj.long_body.get_height()
+            body_h = min(body_h, max_body_h)
+
+            src_rect = pygame.Rect(0, 0, screen_obj.long_body.get_width(), body_h)
+            body = screen_obj.long_body.subsurface(src_rect)
+
+            screen.blit(body, (cx, top_y))
+            screen.blit(screen_obj.long_tail, (cx, tail_y))
+
         except Exception:
             continue
 
+    # タップノート
     for note in tap_notes:
         try:
-            note.draw(screen)
+            x = getattr(note, "x", None)
+            y = getattr(note, "head_y", None)
+            if x is None or y is None:
+                continue
+
+            cx = x - screen_obj.short_body.get_width() // 2
+            cy = y - screen_obj.short_body.get_height() // 2
+
+            screen_obj.short_glow.set_alpha(90)
+            screen.blit(
+                screen_obj.short_glow,
+                (cx - int(10 * UI_SCALE), cy - int(10 * UI_SCALE)),
+            )
+
+            screen.blit(screen_obj.short_body, (cx, cy))
+
         except Exception:
             continue
 
+    # ============================================================
     # 統合エフェクト
+    # ============================================================
     effect_manager = getattr(screen_obj, "effect_manager", None)
     if effect_manager:
         try:
@@ -141,16 +198,18 @@ def draw_gameplay(screen_obj, screen):
         except Exception:
             pass
 
-    # スコア・コンボ
+    # ============================================================
+    # スコア・コンボ（UI_SCALE 対応）
+    # ============================================================
     res = getattr(screen_obj, "res", None)
     font = None
     if res is not None:
         try:
-            font = res.get_font(32, weight="medium")
+            font = res.get_font(int(32 * UI_SCALE), weight="medium")
         except Exception:
             font = None
     if font is None:
-        font = pygame.font.SysFont(None, 32)
+        font = pygame.font.SysFont(None, int(32 * UI_SCALE))
 
     score = getattr(logic, "score", 0) if logic else 0
     combo = getattr(logic, "combo", 0) if logic else 0
@@ -165,8 +224,8 @@ def draw_gameplay(screen_obj, screen):
         (int(cw * combo_scale), int(ch * combo_scale)),
     )
 
-    screen.blit(score_surf, (20, 20))
-    screen.blit(combo_surf, (20, 70))
+    screen.blit(score_surf, (int(20 * UI_SCALE), int(20 * UI_SCALE)))
+    screen.blit(combo_surf, (int(20 * UI_SCALE), int(70 * UI_SCALE)))
 
     # フェード
     draw_fade = getattr(screen_obj, "draw_fade", None)

@@ -1,10 +1,11 @@
 """
-商用品質：円形発光エフェクトモジュール（完全版・最終形態）
+商用品質：円形発光エフェクトモジュール（UI_SCALE対応・完全版）
 
 ノーツ判定やコンボ演出時に使用される円形発光を描画する。
 """
 
 import pygame
+from utils.theme.theme import get_ui_scale
 
 _GLOW_SURFACES = {}
 _SCALED_GLOW_SURFACES = {}
@@ -18,14 +19,19 @@ class GlowCircle:
         self.y = y
         self.color = tuple(color[:3])
 
+        # ★ UI_SCALE 対応
+        self.scale = get_ui_scale()
+
         self.alpha = 255
         self.radius = 0
-        self.max_radius = 80
+        self.max_radius = int(80 * self.scale)     # ★ スケール対応
         self.is_alive = True
 
     def update(self, dt: float):
-        self.radius += 300 * dt
-        self.alpha = max(0, self.alpha - 500 * dt)
+        # ★ スケール対応した速度
+        self.radius += 300 * self.scale * dt
+        self.alpha = max(0, self.alpha - 500 * self.scale * dt)
+
         if self.radius >= self.max_radius or self.alpha <= 0:
             self.is_alive = False
 
@@ -35,10 +41,13 @@ class GlowCircle:
 
         base_key = (self.color, self.max_radius)
         base_surface = _GLOW_SURFACES.get(base_key)
+
+        # ★ ベースグロー生成（UI_SCALE対応）
         if base_surface is None:
             base_size = self.max_radius * 2
             base_surface = pygame.Surface((base_size, base_size), pygame.SRCALPHA)
             center = (self.max_radius, self.max_radius)
+
             for layer_index in range(20):
                 layer = pygame.Surface((base_size, base_size), pygame.SRCALPHA)
                 pygame.draw.circle(
@@ -54,16 +63,20 @@ class GlowCircle:
             pygame.draw.circle(core, (255, 255, 255), center, int(self.max_radius * 0.4))
             core.set_alpha(204)
             base_surface.blit(core, (0, 0))
+
             _GLOW_SURFACES[base_key] = base_surface
 
+        # ★ スケール対応した直径
         diameter = max(1, int(self.radius * 2))
         scaled_key = (base_key, diameter)
         glow_surface = _SCALED_GLOW_SURFACES.get(scaled_key)
+
         if glow_surface is None:
             glow_surface = pygame.transform.smoothscale(base_surface, (diameter, diameter))
             _SCALED_GLOW_SURFACES[scaled_key] = glow_surface
 
         glow_surface.set_alpha(self.alpha)
+
         screen.blit(
             glow_surface,
             (self.x - diameter // 2, self.y - diameter // 2),

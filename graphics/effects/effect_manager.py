@@ -1,8 +1,10 @@
 """
-商用品質：エフェクト統合管理モジュール（完全版・最終形態＋虹色化統合＋爆光統合）
+商用品質：エフェクト統合管理モジュール（UI_SCALE対応・完全版）
 """
 
 import pygame
+from constants import JUDGE_COLORS, LANE_WIDTH, JUDGE_LINE, WIDTH, HEIGHT
+from utils.theme.theme import get_ui_scale
 
 from graphics.effects.judge_ring import JudgeRing
 from graphics.effects.judge_burst import JudgeBurst
@@ -12,68 +14,69 @@ from graphics.effects.glow_circle import GlowCircle
 from graphics.effects.judge_text_effect import JudgeTextEffect
 from graphics.effects.judge_beam import JudgeBeam
 from graphics.effects.hit_line import HitLine
-
-# ★ コンボ切れ演出
 from graphics.effects.combo_break_burst import ComboBreakBurst
-
-from constants import JUDGE_COLORS, LANE_WIDTH, JUDGE_LINE, WIDTH, HEIGHT
 
 
 class EffectManager:
-    """
-    商用品質：判定演出フルセット統合クラス（最終形態）
-    + コンボ切れ演出
-    + Perfect 爆光（spawn_hit_flash）
-    + コンボ2000時の虹色化
-    """
-
     def __init__(self):
         self.effects = []
-        self.logic = None  # ★ GameplayScreen から combo を参照するため
+        self.logic = None
 
-        # ★ Perfect 爆光（白い円形フラッシュ）
+        # ★ UI_SCALE 対応
+        self.scale = get_ui_scale()
+
+        # ============================================================
+        # Perfect 爆光キャッシュ（UI_SCALE対応）
+        # ============================================================
+        base_size = int(240 * self.scale)
         self.hit_flashes = []  # {x, alpha, radius}
-        self._hit_flash_base = pygame.Surface((240, 240), pygame.SRCALPHA)
-        pygame.draw.circle(self._hit_flash_base, (255, 255, 255), (120, 120), 120)
-        self._hit_flash_surfaces = {240: self._hit_flash_base}
+
+        self._hit_flash_base = pygame.Surface((base_size, base_size), pygame.SRCALPHA)
+        pygame.draw.circle(
+            self._hit_flash_base,
+            (255, 255, 255),
+            (base_size // 2, base_size // 2),
+            base_size // 2,
+        )
+
+        self._hit_flash_cache = {base_size: self._hit_flash_base}
 
     # ============================================================
-    # 判定演出フルセット
+    # 判定演出フルセット（UI_SCALE対応）
     # ============================================================
 
     def spawn_hit_effect(self, lane_x, judge_text, font, strength):
         jt = judge_text.lower()
-
         color = tuple(int(c) for c in JUDGE_COLORS.get(jt, (255, 255, 255))[:3])
         strength = max(0.0, min(1.0, float(strength)))
 
-        center_x = lane_x
-        judge_y = JUDGE_LINE
+        cx = lane_x
+        cy = JUDGE_LINE
 
-        # 判定ライン光
-        self.effects.append(JudgeBeam(center_x, judge_y, color, strength))
-        self.effects.append(HitLine(center_x, judge_y, color, strength))
+        # 判定ライン光（UI_SCALE対応）
+        self.effects.append(JudgeBeam(cx, cy, color, strength))
+        self.effects.append(HitLine(cx, cy, color, strength))
 
-        # 波紋
-        self.effects.append(RippleEffect(judge_y, color, strength))
+        # 波紋（UI_SCALE対応）
+        self.effects.append(RippleEffect(cy, color, strength))
 
-        # 爆光・光輪
-        self.effects.append(JudgeBurst((center_x, judge_y), color))
-        self.effects.append(JudgeRing((center_x, judge_y), color))
+        # 爆光・光輪（UI_SCALE対応済み）
+        self.effects.append(JudgeBurst((cx, cy), color))
+        self.effects.append(JudgeRing((cx, cy), color))
 
-        # レーン光（位置修正）
-        lf = LaneFlash(lane_x, LANE_WIDTH, strength)
+        # レーン光（UI_SCALE対応）
+        lf = LaneFlash(lane_x, int(LANE_WIDTH * self.scale), strength)
         lf.trigger()
         self.effects.append(lf)
 
-        # 円形発光
-        self.effects.append(GlowCircle((center_x, judge_y), color))
+        # 円形発光（UI_SCALE対応済み）
+        self.effects.append(GlowCircle((cx, cy), color))
 
-        # 判定文字
+        # 判定文字（UI_SCALE対応）
         self.effects.append(
             JudgeTextEffect(
-                center_x,
-                judge_y - 40,
+                cx,
+                cy - int(40 * self.scale),
                 judge_text.upper(),
                 color,
                 font,
@@ -81,33 +84,26 @@ class EffectManager:
             )
         )
 
-    def spawn_combo_ring(self, x, y):
-        self.effects.append(JudgeRing(x, y, (255, 255, 255)))
-
     # ============================================================
-    # ★ Perfect 爆光（プロセカ式）
+    # Perfect 爆光（プロセカ式・UI_SCALE対応）
     # ============================================================
 
     def spawn_hit_flash(self, x):
-        """
-        Perfect の瞬間に白い爆光を出す演出。
-        effects.py の spawn_hit_effect() から呼ばれる。
-        """
         self.hit_flashes.append(
             {
                 "x": x,
                 "alpha": 255,
-                "radius": 120,
+                "radius": int(120 * self.scale),
             }
         )
 
     # ============================================================
-    # ★ コンボ切れ演出（MISS時）
+    # コンボ切れ演出（UI_SCALE対応）
     # ============================================================
 
     def spawn_combo_break(self, lane_x):
-        center_x = lane_x + LANE_WIDTH // 2
-        self.effects.append(ComboBreakBurst((center_x, JUDGE_LINE)))
+        cx = lane_x + int(LANE_WIDTH * self.scale) // 2
+        self.effects.append(ComboBreakBurst((cx, JUDGE_LINE)))
 
     # ============================================================
     # 更新
@@ -127,7 +123,7 @@ class EffectManager:
 
         self.effects = alive
 
-        # ★ Perfect 爆光の減衰処理
+        # Perfect 爆光の減衰（UI_SCALE対応）
         for flash in self.hit_flashes[:]:
             flash["alpha"] *= 0.88
             flash["radius"] *= 0.92
@@ -135,7 +131,7 @@ class EffectManager:
             if flash["alpha"] < 5:
                 self.hit_flashes.remove(flash)
 
-        # ★ コンボ2000で判定ライン虹色化
+        # コンボ2000で虹色化
         if self.logic is not None:
             combo = getattr(self.logic, "combo", 0)
             if combo == 2000:
@@ -144,32 +140,29 @@ class EffectManager:
                         e.trigger_rainbow()
 
     # ============================================================
-    # 描画（dt を使わない設計に統一）
+    # 描画（UI_SCALE対応）
     # ============================================================
 
     def draw(self, screen):
-        # 通常エフェクト
         for e in self.effects:
             e.draw(screen)
 
-        # ★ Perfect 爆光描画
+        # Perfect 爆光
         for flash in self.hit_flashes:
             radius = max(1, int(flash["radius"]))
             diameter = radius * 2
-            surf = self._hit_flash_surfaces.get(diameter)
+
+            surf = self._hit_flash_cache.get(diameter)
             if surf is None:
                 surf = pygame.transform.smoothscale(self._hit_flash_base, (diameter, diameter))
-                self._hit_flash_surfaces[diameter] = surf
+                self._hit_flash_cache[diameter] = surf
+
             surf.set_alpha(int(flash["alpha"]))
             screen.blit(
                 surf,
                 (int(flash["x"] - radius), JUDGE_LINE - radius),
                 special_flags=pygame.BLEND_ADD,
             )
-
-    # ============================================================
-    # リセット
-    # ============================================================
 
     def clear(self):
         self.effects.clear()

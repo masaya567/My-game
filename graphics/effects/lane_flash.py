@@ -1,18 +1,22 @@
 import pygame
 import math
 from constants import HEIGHT
+from utils.theme.theme import get_ui_scale
 
 
 class LaneFlash:
     def __init__(self, lane_x: float, lane_width: int, strength: float = 1.0):
+        self.scale = get_ui_scale()
+
         self.lane_x = lane_x
-        self.lane_width = lane_width
+        self.lane_width = int(lane_width * self.scale)   # ★ UI_SCALE 対応
         self.strength = strength
 
         self.alpha = 0
         self.timer = 0.0
         self.active = False
         self.is_alive = True
+
         self._flash_surface = None
         self._add_surface = None
         self._surface_size = None
@@ -27,7 +31,9 @@ class LaneFlash:
         if not self.active:
             return
 
-        self.timer += dt * 6
+        # ★ UI_SCALE 対応した減衰速度
+        self.timer += dt * (6 * self.scale)
+
         fade = int(self.alpha * math.exp(-self.timer))
         self.alpha = max(0, fade)
 
@@ -39,7 +45,7 @@ class LaneFlash:
         if not self.active or self.alpha <= 0:
             return
 
-        lane_height = lane_height or HEIGHT
+        lane_height = int((lane_height or HEIGHT) * self.scale)  # ★ UI_SCALE 対応
 
         surface_size = (self.lane_width, lane_height)
         if self._surface_size != surface_size:
@@ -54,8 +60,11 @@ class LaneFlash:
         layers = 12
         for i in range(layers):
             ratio = 1 - (i / layers)
+
+            # ★ UI_SCALE 対応した層のアルファ
             alpha = max(0, min(255, int(self.alpha * ratio * 0.28)))
 
+            # ★ UI_SCALE 対応した層の位置と高さ
             top = int(i * lane_height / (layers * 2))
             height = max(1, lane_height - top * 2)
 

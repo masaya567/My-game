@@ -1,17 +1,7 @@
-"""
-商用仕様：音響解析モジュール（完全統合版）
-
-- AudioAnalyzer
-    ├ BPM（安全フォールバック付き）
-    ├ 帯域別エネルギー（kick / snare / hihat / melody）
-    ├ サステイン（ロングノーツ候補）
-    ├ 曲構造（verse / chorus）
-    ├ frame_to_time() / hop_length / bpm_events
-- AutoChartGenerator / Song / Gameplay と完全同期
-"""
-
 import librosa
 import numpy as np
+import json
+import os
 
 
 class AudioAnalyzer:
@@ -34,7 +24,7 @@ class AudioAnalyzer:
         # BPM
         self.bpm = None
         self.beat_times = []
-        self.bpm_events = []  # AutoChartGenerator 用（将来の BPM 変化にも対応）
+        self.bpm_events = []  # AutoChartGenerator 用
         self.onsets = None
         self.centroid = {}
 
@@ -42,16 +32,36 @@ class AudioAnalyzer:
         self.hop_length = 512  # AutoChartGenerator と統一
 
     # ============================================================
-    # 音声ロード（ゲーム統合版）
+    # キャッシュ読み込み
+    # ============================================================
+
+    def load_cache(self, song_id):
+        path = f"cache/audio/{song_id}.json"
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"[AudioAnalyzer] Cache broken: {e}")
+        return None
+
+    # ============================================================
+    # キャッシュ保存
+    # ============================================================
+
+    def save_cache(self, song_id, data):
+        os.makedirs("cache/audio", exist_ok=True)
+        with open(f"cache/audio/{song_id}.json", "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+    # ============================================================
+    # 音声ロード
     # ============================================================
 
     def ensure_audio(self) -> bool:
-        """音声が未ロードならロードする（ゲーム統合用）"""
         if self.y is None:
             try:
-                self.y, self.sr = librosa.load(
-                    self.file_path, sr=None  # 元サンプリングレートを維持
-                )
+                self.y, self.sr = librosa.load(self.file_path, sr=None)
                 if self.sr <= 0 or self.y is None or self.y.size == 0:
                     self.y = None
                     self.sr = 0
@@ -64,24 +74,15 @@ class AudioAnalyzer:
                 return False
         return True
 
-    # ============================================================
-    # 旧仕様互換：load_audio（load_chart が呼ぶため必要）
-    # ============================================================
     def load_audio(self, file_path: str):
-        """
-        旧仕様互換のダミー関数。
-        現在は ensure_audio() がロードを担当するため、
-        ここでは file_path をセットするだけでよい。
-        """
         self.file_path = file_path
         return True
 
     # ============================================================
-    # フレーム → 時間変換（AutoChartGenerator 用）
+    # フレーム → 時間変換
     # ============================================================
 
     def frame_to_time(self, frame: int) -> float:
-        """解析フレーム番号を秒に変換"""
         return float(librosa.frames_to_time(frame, sr=self.sr, hop_length=self.hop_length))
 
     # ============================================================
@@ -98,7 +99,7 @@ class AudioAnalyzer:
         return self.spectrum
 
     # ============================================================
-    # BPM 推定（ゲーム落ち防止版）
+    # BPM 推定
     # ============================================================
 
     def analyze_bpm(self):
@@ -120,16 +121,16 @@ class AudioAnalyzer:
 
         self.bpm = tempo
         self.beat_times = librosa.frames_to_time(beat_frames, sr=self.sr).tolist()
-
-        # 現状は単一 BPM イベントとして扱う（将来拡張用）
         self.bpm_events = [{"time": 0.0, "bpm": self.bpm}]
-        
-        print(f"[AudioAnalyzer] BPM detected: {self.bpm}")
 
+        print(f"[AudioAnalyzer] BPM detected: {self.bpm}")
         return self.bpm, self.beat_times
 
+    # ============================================================
+    # オンセット解析
+    # ============================================================
+
     def analyze_onsets(self):
-        """Detect note onsets and cache spectral centroid values by time."""
         if self.onsets is not None:
             return self.onsets
         if not self.ensure_audio():
@@ -138,9 +139,7 @@ class AudioAnalyzer:
             return self.onsets
 
         onset_envelope = librosa.onset.onset_strength(
-            y=self.y,
-            sr=self.sr,
-            hop_length=self.hop_length,
+            y=self.y, sr=self.sr, hop_length=self.hop_length
         )
         onset_frames = librosa.onset.onset_detect(
             onset_envelope=onset_envelope,
@@ -149,6 +148,7 @@ class AudioAnalyzer:
             units="frames",
         )
         onset_times = librosa.frames_to_time(onset_frames, sr=self.sr, hop_length=self.hop_length)
+
         self.onsets = [
             (float(time), float(onset_envelope[frame]))
             for frame, time in zip(onset_frames, onset_times)
@@ -156,17 +156,17 @@ class AudioAnalyzer:
         ]
 
         centroid_values = librosa.feature.spectral_centroid(
-            y=self.y,
-            sr=self.sr,
-            hop_length=self.hop_length,
+            y=self.y, sr=self.sr, hop_length=self.hop_length
         )[0]
         centroid_times = librosa.frames_to_time(
             np.arange(len(centroid_values)), sr=self.sr, hop_length=self.hop_length
         )
+
         self.centroid = {
             round(float(time), 3): float(value)
             for time, value in zip(centroid_times, centroid_values)
         }
+
         return self.onsets
 
     # ============================================================
@@ -197,12 +197,7 @@ class AudioAnalyzer:
         hihat = band_energy(4000, 10000)
         melody = band_energy(300, 3000)
 
-        bands = {
-            "kick": {},
-            "snare": {},
-            "hihat": {},
-            "melody": {},
-        }
+        bands = {"kick": {}, "snare": {}, "hihat": {}, "melody": {}}
 
         for i, t in enumerate(times):
             t_r = round(float(t), 3)
@@ -215,7 +210,7 @@ class AudioAnalyzer:
         return bands
 
     # ============================================================
-    # サステイン検出（ロングノーツ）
+    # サステイン検出
     # ============================================================
 
     def detect_sustain(self, band_key="melody", min_length=0.3):
@@ -241,6 +236,7 @@ class AudioAnalyzer:
         threshold = float(np.max(energies)) * 0.5
         if threshold <= 0:
             return []
+
         above = energies > threshold
 
         sustain = []
@@ -268,19 +264,10 @@ class AudioAnalyzer:
         return sustain
 
     # ============================================================
-    # 曲構造推定（Aメロ / サビ） → 最終強化版
+    # 曲構造推定
     # ============================================================
 
     def analyze_sections(self, section_len=8.0):
-        """
-        盛り上がり検出（商用品質）
-        - 音量（volume_energy）
-        - メロディ強度（melody_energy）
-        - ドラム強度（drum_energy）
-        - オンセット密度（onset_density）
-        - スペクトラム広がり（spectrum_energy）
-        """
-
         if not self.ensure_audio():
             return []
 
@@ -288,7 +275,6 @@ class AudioAnalyzer:
         sr = self.sr
         duration = len(y) / sr
 
-        # 必要解析を先に確保
         bands = self.analyze_bands()
         onsets = self.analyze_onsets()
 
@@ -299,23 +285,14 @@ class AudioAnalyzer:
             start = t
             end = min(t + section_len, duration)
 
-            # -----------------------------
-            # ① 音量エネルギー
-            # -----------------------------
             seg = y[int(start * sr): int(end * sr)]
             volume_energy = float(seg.std()) * 1.2
 
-            # -----------------------------
-            # ② メロディ強度（高周波帯）
-            # -----------------------------
             melody_energy = np.mean([
                 v for time, v in bands["melody"].items()
                 if start <= time <= end
             ]) if bands else 0.0
 
-            # -----------------------------
-            # ③ ドラム強度（kick/snare/hihat）
-            # -----------------------------
             kick_energy = np.mean([
                 v for time, v in bands["kick"].items()
                 if start <= time <= end
@@ -337,24 +314,15 @@ class AudioAnalyzer:
                 hihat_energy * 0.4
             )
 
-            # -----------------------------
-            # ④ オンセット密度
-            # -----------------------------
             onset_count = sum(1 for o, _ in onsets if start <= o <= end)
             onset_density = onset_count / max(1.0, (end - start))
 
-            # -----------------------------
-            # ⑤ スペクトラム広がり
-            # -----------------------------
             spectrum_energy = (
                 np.mean([v for time, v in bands["kick"].items() if start <= time <= end]) +
                 np.mean([v for time, v in bands["snare"].items() if start <= time <= end]) +
                 np.mean([v for time, v in bands["hihat"].items() if start <= time <= end])
             ) / 3.0 if bands else 0.0
 
-            # -----------------------------
-            # ★ 総合エネルギー（0〜1に正規化）
-            # -----------------------------
             raw_energy = (
                 0.35 * volume_energy +
                 0.25 * melody_energy +
@@ -376,9 +344,56 @@ class AudioAnalyzer:
         self.sections = sections
         return sections
 
+    # ============================================================
+    # ★ 全解析キャッシュ統合（最重要）
+    # ============================================================
+
+    def analyze_all(self, song_id):
+        cache = self.load_cache(song_id)
+        if cache:
+            print(f"[AudioAnalyzer] Loaded cache for {song_id}")
+            self.bpm = cache["bpm"]
+            self.beat_times = cache["beat_times"]
+            self.band_energy = cache["band_energy"]
+            self.onsets = cache["onsets"]
+            self.sustain_regions = cache["sustain"]
+            self.sections = cache["sections"]
+
+            # ★ 追加（抜けていた部分）
+            self.spectrum = cache.get("spectrum")
+            self.freq_distribution = cache.get("freq_distribution")
+
+            return cache
+
+        print(f"[AudioAnalyzer] Running full analysis for {song_id}")
+
+        self.analyze_bpm()
+        self.analyze_bands()
+        self.analyze_onsets()
+        self.detect_sustain()
+        self.analyze_sections()
+        self.analyze_spectrum()  # ★ スペクトラム解析を呼ぶ必要あり
+
+        data = {
+            "bpm": self.bpm,
+            "beat_times": self.beat_times,
+            "band_energy": self.band_energy,
+            "onsets": self.onsets,
+            "sustain": self.sustain_regions,
+            "sections": self.sections,
+
+            # ★ 追加（抜けていた部分）
+            "spectrum": self.spectrum,
+            "freq_distribution": self.freq_distribution,
+        }
+
+        self.save_cache(song_id, data)
+        print(f"[AudioAnalyzer] Saved cache for {song_id}")
+
+        return data
+
 
 def analyze_songs(songs):
-    """既存の曲コレクション API と AudioAnalyzer を接続する。"""
     if isinstance(songs, dict):
         analyzed = {}
         for song_id, song in songs.items():

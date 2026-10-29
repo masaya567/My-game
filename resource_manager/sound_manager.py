@@ -4,9 +4,16 @@
 ゲーム内で使用する効果音・BGMを統一的に管理する。
 """
 
+import sys
+import os
 import pygame
 from pathlib import Path
 from typing import Optional
+
+# ★ アプリ化対応：BASE_DIR / ASSETS_DIR / SOUNDS_DIR
+BASE_DIR = getattr(sys, "_MEIPASS", os.path.abspath(os.path.dirname(__file__)))
+ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+SOUNDS_DIR = os.path.join(ASSETS_DIR, "sounds")
 
 
 class SoundManager:
@@ -21,7 +28,9 @@ class SoundManager:
         self.music_volume = 0.8
         self.effect_volume = 0.9
 
-        self.base_path = Path(__file__).resolve().parent.parent / "assets" / "sounds"
+        # ★ アプリ化対応パス
+        self.base_path = Path(SOUNDS_DIR)
+
         self.extensions = [".wav", ".ogg", ".mp3"]
 
     # ============================================================
@@ -32,11 +41,9 @@ class SoundManager:
         """複数拡張子を探索して最初に見つかった音声ファイルを返す"""
         base = self.base_path / name
 
-        # すでに拡張子付きならそのままチェック
         if base.exists():
             return base
 
-        # 拡張子を自動探索
         for ext in self.extensions:
             candidate = base.with_suffix(ext)
             if candidate.exists():
@@ -78,7 +85,6 @@ class SoundManager:
     # ============================================================
 
     def play(self, name: str) -> None:
-        """効果音を再生"""
         sound = self.get(name)
         sound.play()
 
@@ -87,8 +93,6 @@ class SoundManager:
     # ============================================================
 
     def play_music(self, name: str, loop: bool = True) -> None:
-        """BGMを再生"""
-
         file_path = self._find_file(name)
         if file_path is None:
             print(f"[SoundManager] Warning: BGMが見つかりません → {name}")

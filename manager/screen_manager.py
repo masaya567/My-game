@@ -129,6 +129,10 @@ class ScreenManager:
 
         # --- 特殊画面：ResultScreen ---
         if name == "result":
+            if not isinstance(args, dict):
+                print("[ERROR] ResultScreen に dict 以外が渡されました:", args)
+                return
+
             self.current = screen_class(
                 self,
                 args.get("score"),
@@ -138,6 +142,7 @@ class ScreenManager:
                 args.get("good"),
                 args.get("miss"),
                 args.get("song"),
+                args.get("logic")
             )
 
         # --- DifficultyScreen は Song を受け取る ---

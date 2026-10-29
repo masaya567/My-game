@@ -1,16 +1,16 @@
 """
 商用仕様：画面基盤クラス（BaseScreen）
-
-全てのUI画面が継承する共通クラス。
+アプリケーション化に必要な高速化（font.render キャッシュ + 背景 Surface キャッシュ）対応版
 """
 
 import pygame
+from constants import WIDTH, HEIGHT
 from resource_manager.resource_manager import ResourceManager
 
 
 class BaseScreen:
     """
-    商用仕様：全画面共通の基盤クラス
+    商用品質：全画面共通の基盤クラス
     """
 
     def __init__(self, manager):
@@ -18,18 +18,50 @@ class BaseScreen:
         self.active = True
         self.fade_alpha = 0
 
+        # ResourceManager
         self.res = getattr(manager, "resources", None)
         if self.res is None:
             self.res = getattr(manager, "res", None)
         if self.res is None:
             self.res = ResourceManager()
 
+        # ★ 高速化：font.render キャッシュ
+        self.text_cache = {}
+
+        # ★ 高速化：背景 Surface キャッシュ
+        self.bg_surface = None
+        self.bg_color = None
+
+    # ============================================================
+    # 背景キャッシュ化（高速化）
+    # ============================================================
+
+    def set_background(self, color):
+        """
+        背景 Surface をキャッシュ生成（アプリ化で最重要）
+        - 毎フレーム fill() を呼ばない
+        - Surface を毎回生成しない
+        """
+        self.bg_color = color
+        self.bg_surface = pygame.Surface((WIDTH, HEIGHT))
+        self.bg_surface.fill(color)
+
+    # ============================================================
+    # 高速化：文字キャッシュ
+    # ============================================================
+
+    def get_text(self, text: str, size: int, color: tuple, weight=None):
+        key = (text, size, color, weight)
+        if key not in self.text_cache:
+            font = self.res.get_font(size, weight=weight)
+            self.text_cache[key] = font.render(text, True, color)
+        return self.text_cache[key]
+
     # ============================================================
     # 更新処理（各画面でオーバーライド）
     # ============================================================
 
     def update(self, dt):
-        """毎フレーム更新処理"""
         pass
 
     # ============================================================
@@ -37,7 +69,10 @@ class BaseScreen:
     # ============================================================
 
     def draw(self, screen, fonts=None):
-        """画面描画処理"""
+        """
+        各画面の draw() 冒頭で以下を呼ぶこと：
+            screen.blit(self.bg_surface, (0, 0))
+        """
         pass
 
     # ============================================================
@@ -45,14 +80,20 @@ class BaseScreen:
     # ============================================================
 
     def handle_event(self, event):
-        """入力イベント処理"""
         pass
 
     def on_enter(self):
         self.active = True
 
+        # ★ 画面切り替え時にキャッシュをクリア（メモリ節約）
+        self.text_cache.clear()
+
     def on_exit(self):
         self.active = False
+
+    # ============================================================
+    # center_text（高速化対応版）
+    # ============================================================
 
     def center_text(
         self,
@@ -65,14 +106,14 @@ class BaseScreen:
         x=None,
         max_width=None,
     ):
-        font = self.res.get_font(size, weight=weight)
         if max_width is not None:
-            text_to_render = self.fit_text(text, max_width, size=size, weight=weight)
-            surf = font.render(text_to_render, True, color)
-        else:
-            surf = font.render(text, True, color)
+            text = self.fit_text(text, max_width, size=size, weight=weight)
+
+        surf = self.get_text(text, size, color, weight)
+
         if x is None:
             x = screen.get_width() // 2 - surf.get_width() // 2
+
         screen.blit(surf, (x, y))
         return surf
 
@@ -89,6 +130,10 @@ class BaseScreen:
             clipped = clipped[:-1]
         return clipped + ellipsis
 
+    # ============================================================
+    # フェード
+    # ============================================================
+
     def draw_fade(self, screen, color=(0, 0, 0)):
         if self.fade_alpha <= 0:
             return
@@ -101,7 +146,6 @@ class BaseScreen:
     # ============================================================
 
     def fade_in(self, screen, color=(0, 0, 0), duration=500):
-        """フェードイン演出"""
         overlay = pygame.Surface(screen.get_size())
         overlay.fill(color)
         for alpha in range(255, -1, -10):
@@ -111,7 +155,6 @@ class BaseScreen:
             pygame.time.delay(duration // 25)
 
     def fade_out(self, screen, color=(0, 0, 0), duration=500):
-        """フェードアウト演出"""
         overlay = pygame.Surface(screen.get_size())
         overlay.fill(color)
         for alpha in range(0, 256, 10):
@@ -121,7 +164,6 @@ class BaseScreen:
             pygame.time.delay(duration // 25)
 
     def play_sound(self, sound):
-        """効果音再生（pygame.mixer.Sound対応）"""
         if sound:
             sound.play()
 
@@ -142,5 +184,4 @@ class BaseScreen:
             self.manager.set(target)
 
     def deactivate(self):
-        """画面を非アクティブ化"""
         self.active = False

@@ -1,19 +1,17 @@
 def normalize_notes(notes):
     """
-    商用品質：完全版 normalize_notes
+    商用品質：完全版 normalize_notes（low/mid/high 対応）
     - ロング中ショート削除（同 lane）
     - head/tail 同時刻ショート削除（同 lane）
     - ロング前後ショート調整（全 lane）
     - ロング同士の衝突除去（全 lane）
-    - multi-lane 同時刻ショート → 階段変換
-    - melody 優先
+    - multi-lane 同時刻ショート → 階段変換（high 優先）
     """
 
     PEAK_PRIORITY = {
-        "melody": 3,
-        "snare": 2,
-        "hihat": 1,
-        "kick": 0,
+        "high": 3,   # メロディ（右手）最優先
+        "mid": 2,    # 伴奏（中央）
+        "low": 1,    # 左手
     }
 
     # lane ごとに分ける
@@ -98,7 +96,7 @@ def normalize_notes(notes):
                 last_long_end[lane] = n["end_time"]
 
     # ============================================================
-    # 4. multi-lane 同時刻ショート → 階段変換
+    # 4. multi-lane 同時刻ショート → 階段変換（high 優先）
     # ============================================================
     cleaned.sort(key=lambda n: n["time"])
 
@@ -124,6 +122,7 @@ def normalize_notes(notes):
             i = j
             continue
 
+        # high → mid → low の優先順位で階段化
         group.sort(key=lambda g: -PEAK_PRIORITY.get(g["peak_type"], 0))
 
         base_lane = group[0]["lane"]

@@ -1,26 +1,40 @@
 """
-ゲーム全体で使う定数定義（市販音ゲー品質・最終統合版）
+ゲーム全体で使う定数定義（市販音ゲー品質・自動スケーリング対応・最終統合版）
 """
 
 import pygame
 
 # ========================
-# 画面サイズ
+# 画面サイズ（自由に変更可能）
 # ========================
-WIDTH = 400
-HEIGHT = 600
-UI_SCALE = 1.0
+WIDTH = 480
+HEIGHT = 720
+
+# ========================
+# UI スケール（画面サイズに応じて自動調整）
+# ========================
+BASE_WIDTH = 400
+BASE_HEIGHT = 600
+
+UI_SCALE_X = WIDTH / BASE_WIDTH
+UI_SCALE_Y = HEIGHT / BASE_HEIGHT
+UI_SCALE = (UI_SCALE_X + UI_SCALE_Y) / 2   # 黄金比を崩さない平均スケール
+
+
+# ========================
+# レーン設定
+# ========================
 LANES = 4
 LANE_WIDTH = WIDTH // LANES
-
-# レーン中心座標
 LANE_X = [int((i + 0.5) * LANE_WIDTH) for i in range(LANES)]
+
 
 # ========================
 # 判定ライン（画面比率で安定）
 # ========================
 JUDGE_LINE = int(HEIGHT * 0.78)
-JUDGE_LINE_WIDTH = 4
+JUDGE_LINE_WIDTH = int(4 * UI_SCALE)
+
 NOTE_FALL_TIME = 1.8
 
 
@@ -65,19 +79,17 @@ DIFFICULTY_JUDGE_SCALE = {
     "EXPERT": 0.80,
 }
 
-# ========================
-# ノーツサイズ
-# ========================
-NOTE_HEIGHT = 20
-NOTE_START_Y = -40
 
+# ========================
+# ノーツサイズ（自動スケーリング）
+# ========================
+NOTE_HEIGHT = int(20 * UI_SCALE)
+NOTE_START_Y = int(-40 * UI_SCALE)
 
-# ロングノーツ長さ（音の強弱で変動）
 def calc_long_length(peak_strength):
-    return int(200 + (peak_strength * 180))
+    return int((200 + (peak_strength * 180)) * UI_SCALE)
 
-
-LONG_NOTE_THRESHOLD = 150
+LONG_NOTE_THRESHOLD = int(150 * UI_SCALE)
 
 
 # ========================
@@ -90,6 +102,7 @@ def calc_visible_time(note_speed):
 SPAWN_Y = -NOTE_HEIGHT
 BPM_SMOOTHING = 0.12
 
+
 # ========================
 # キー設定
 # ========================
@@ -99,6 +112,7 @@ KEYS_TO_LANES = {
     pygame.K_j: 2,
     pygame.K_k: 3,
 }
+
 
 # ========================
 # 色定義
@@ -113,6 +127,7 @@ YELLOW = (255, 255, 0)
 BLUE = (0, 0, 255)
 
 LANE_COLORS = [(0, 0, 0), (40, 40, 40), (80, 80, 80), (120, 120, 120)]
+
 
 # ========================
 # UI カラー
@@ -132,8 +147,8 @@ UI_COLORS = {
     "lane_flash": (100, 150, 255),
     "holding_highlight": (0, 220, 255, 45),
     "menu_highlight": (40, 80, 160),
-
 }
+
 
 # ========================
 # ノーツ描画カラー
@@ -148,6 +163,7 @@ NOTE_COLORS = {
     "long_glow": (80, 180, 255, 70),
     "long_core": (0, 140, 255),
 }
+
 
 # ========================
 # 判定カラー
@@ -166,6 +182,7 @@ JUDGE_STRENGTH = {
     "miss": 0.0,
 }
 
+
 # ========================
 # スコア
 # ========================
@@ -175,19 +192,21 @@ SCORE_GOOD = 200
 SCORE_MISS = 0
 
 COMBO_MULTIPLIER = 1.02
-
 JUDGE_TEXT_DURATION = 0.45
+
 
 # ========================
 # 負荷対策
 # ========================
 MAX_VISIBLE_NOTES = 200
 
+
 # ========================
 # FPS
 # ========================
 TARGET_FPS = 60
 FPS = TARGET_FPS
+
 
 # ========================
 # 音量
