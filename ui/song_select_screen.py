@@ -8,11 +8,7 @@ from songs.loader.song_loader import load_all_songs
 
 class SongSelectScreen(BaseScreen):
     """
-    商用品質：曲選択カード UI（高速化対応版）
-    - Rect キャッシュ化
-    - font.render キャッシュ化（BaseScreen）
-    - 背景 Surface キャッシュ化
-    - スライドアニメーション
+    商用品質：曲選択カード UI（高速化対応版 + PyInstaller安全化 + 画面サイズ変更完全対応）
     """
 
     def __init__(self, manager):
@@ -27,7 +23,7 @@ class SongSelectScreen(BaseScreen):
         self.card_gap = 125
         self.scale = get_ui_scale()
 
-        # ★ Rect キャッシュ
+        # Rect キャッシュ
         self.card_rects = []
 
         # 背景粒子
@@ -39,9 +35,12 @@ class SongSelectScreen(BaseScreen):
     def on_enter(self):
         super().on_enter()
 
-        self.set_background(UI_COLORS["bg_select"])   # ★背景キャッシュ化
+        # ★ 画面サイズ変更後の UI_SCALE 再計算（最重要）
+        self.scale = get_ui_scale()
 
-        # ★ Rect キャッシュ生成（高速化）
+        self.set_background(UI_COLORS["bg_select"])
+
+        # ★ Rect キャッシュ再生成（画面サイズ変更時のズレ防止）
         self.card_rects.clear()
         base_y = int(160 * self.scale)
 
@@ -68,13 +67,13 @@ class SongSelectScreen(BaseScreen):
     def draw(self, screen):
         scale = self.scale
 
-        screen.blit(self.bg_surface, (0, 0))   # ★背景キャッシュ化
+        screen.blit(self.bg_surface, (0, 0))
 
         # 背景光粒子
         for x, y, s in self.particles:
             pygame.draw.circle(screen, (255, 255, 255, 40), (int(x), int(y)), int(3 * s))
 
-        # タイトル（UI_SCALE 対応）
+        # タイトル
         self.center_text(
             screen,
             "曲を選択",
@@ -90,13 +89,13 @@ class SongSelectScreen(BaseScreen):
         for i, song in enumerate(self.songs):
             is_selected = i == self.index
 
-            # ★ キャッシュした Rect を使う
+            # Rect キャッシュ使用
             rect = self.card_rects[i].copy()
             rect.y += int(self.slide_offset)
 
             card_w, card_h = rect.width, rect.height
 
-            # 拡大処理（Rect を拡大）
+            # 拡大処理
             if is_selected:
                 card_w = int(card_w * 1.06)
                 card_h = int(card_h * 1.06)
@@ -124,28 +123,35 @@ class SongSelectScreen(BaseScreen):
                 pygame.draw.rect(glow, (255, 255, 255, 180), glow.get_rect(), 4, border_radius=16)
                 screen.blit(glow, rect)
 
-            # ジャケット
+            # ★ ジャケット安全化（None でも描画落ちしない）
             jacket = getattr(song, "jacket", None)
-            if jacket:
+            if jacket is not None:
                 jacket_size = int(100 * scale)
                 jacket_img = pygame.transform.smoothscale(jacket, (jacket_size, jacket_size))
                 screen.blit(jacket_img, (x + 20, y + 15))
+            else:
+                pygame.draw.rect(
+                    screen,
+                    (180, 180, 180),
+                    (x + 20, y + 15, int(100 * scale), int(100 * scale)),
+                    border_radius=12
+                )
 
-            # 曲名（UI_SCALE 対応）
+            # 曲名
             title_text = self.fit_text(song.title, max_width=int(card_w - 165), size=int(24 * scale), weight="bold")
             title_surf = self.get_text(title_text, int(24 * scale), (30, 30, 30), weight="bold")
             screen.blit(title_surf, (x + 125, y + 12))
 
-            # BPM / Length（UI_SCALE 対応）
+            # BPM / Length
             info = f"BPM {round(song.bpm)}  長さ {song.length:.1f}秒"
             info_surf = self.get_text(info, int(18 * scale), (70, 70, 70))
             screen.blit(info_surf, (x + 125, y + 46))
 
-            # 難易度（UI_SCALE 対応）
+            # 難易度
             diff_surf = self.get_text("難易度: ノーマル", int(18 * scale), (90, 90, 90))
             screen.blit(diff_surf, (x + 125, y + 72))
 
-        # フッター（UI_SCALE 対応）
+        # フッター
         self.center_text(
             screen,
             "Enter: 決定   Esc: 戻る",

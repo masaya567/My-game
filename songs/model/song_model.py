@@ -5,6 +5,7 @@
 print("[DEBUG] SongModel loaded from:", __file__)
 
 import os
+import sys
 import pygame
 from typing import Optional
 
@@ -18,6 +19,11 @@ from utils.color.theme_colors import SONG_COLOR_MAP
 
 # ★ ジャケット生成
 from utils.jacket.jacket_generator import make_proseka_jacket
+
+# ★ 画像管理（PyInstaller対応）
+from resource_manager.image_manager import ImageManager
+
+image_manager = ImageManager()
 
 
 class Song:
@@ -64,23 +70,36 @@ class Song:
         self.jacket_shadow = None
 
         # ============================================================
-        # ジャケット画像生成（曲ごとに色テーマを反映）
+        # ジャケット画像生成（曲ごとに色テーマを反映・PyInstaller対応）
         # ============================================================
         base_color = SONG_COLOR_MAP.get(self.song_id, (120, 120, 255))
 
         try:
+            # note.png を ImageManager 経由で取得（PyInstaller対応）
+            note_img = image_manager.get("note")
+
+            # ベースジャケット生成（外部画像なし）
             self.jacket_shadow, self.jacket_image = make_proseka_jacket(
                 title=self.title,
                 base_color=base_color,
-                image_path="assets/images/note.png",
+                image_path=None,
                 size=(256, 256),
             )
+
+            # note.png を合成
+            if note_img is not None:
+                note_scaled = pygame.transform.smoothscale(note_img, (256, 256))
+                self.jacket_image.blit(note_scaled, (0, 0))
+
             self.jacket = self.jacket_image
             print(f"[Song] Jacket generated for: {self.title}")
+
         except Exception as e:
             print(f"[Song] Jacket generation failed for {self.title}: {e}")
+            # フォールバック（クラッシュ防止）
+            self.jacket_image = pygame.Surface((256, 256), pygame.SRCALPHA)
             self.jacket_shadow = None
-            self.jacket_image = None
+            self.jacket = self.jacket_image
 
     # ============================================================
     # 曲データロード（音声ロード → BPM解析 → 譜面ロード）

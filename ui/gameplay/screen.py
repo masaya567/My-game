@@ -45,9 +45,12 @@ class GameplayScreen(BaseScreen):
 
         # 難易度別に譜面再生成
         try:
-            from chart.generator.auto_chart_generator import AutoChartGenerator
-            generator = AutoChartGenerator(self.song.audio_analyzer, self.difficulty)
-            self.song.chart = generator.generate()
+            chart_difficulty = str(getattr(self.song, "chart_difficulty", "")).lower()
+            if chart_difficulty != self.difficulty or not getattr(self.song, "chart", None):
+                from chart.generator.auto_chart_generator import AutoChartGenerator
+                generator = AutoChartGenerator(self.song.audio_analyzer, self.difficulty)
+                self.song.chart = generator.generate() or []
+                self.song.chart_difficulty = self.difficulty
             self.song.build_notes()
         except Exception as e:
             print("[GameplayScreen] Chart regeneration failed:", e)
@@ -103,14 +106,14 @@ class GameplayScreen(BaseScreen):
         default_keys = [pygame.K_d, pygame.K_f, pygame.K_j, pygame.K_k]
         arrow_keys = [pygame.K_LEFT, pygame.K_DOWN, pygame.K_UP, pygame.K_RIGHT]
 
-        self.lane_keys = [
-            [
-                default_keys[lane],
-                arrow_keys[lane],
-                keymap.get(f"Lane {lane + 1}"),
-            ]
-            for lane in range(4)
-        ]
+        self.lane_keys = []
+        for lane in range(4):
+            custom_key = keymap.get(f"Lane {lane + 1}")
+            if isinstance(custom_key, str):
+                custom_key = pygame.key.key_code(custom_key)
+
+            lane_keys = [default_keys[lane], arrow_keys[lane], custom_key]
+            self.lane_keys.append(list(dict.fromkeys(key for key in lane_keys if key is not None)))
 
         self.key_pressed = [False, False, False, False]
         self.pending_key_down = {}

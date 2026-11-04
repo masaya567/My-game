@@ -1,13 +1,27 @@
 """
 商用仕様：ログ管理モジュール（完全版・統合版）
-
-ゲーム全体の動作・エラー・イベントを記録する。
-日付ごとにログファイルを自動分割し、複数生成を防ぐ。
+PyInstaller 対応済み（EXE でも確実に動作）
 """
 
 import logging
 import os
+import sys
 from datetime import datetime
+
+
+# ============================================================
+# PyInstaller 対応：BASE_DIR を統一
+# ============================================================
+def get_base_dir():
+    if hasattr(sys, "_MEIPASS"):
+        return sys._MEIPASS
+    return os.path.abspath(os.path.dirname(__file__))
+
+BASE_DIR = get_base_dir()
+
+# dist/logs にログを出力する
+LOG_DIR = os.path.join(BASE_DIR, "..", "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
 
 
 class GameLogger:
@@ -25,26 +39,22 @@ class GameLogger:
             cls._instance = super(GameLogger, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, log_dir="logs"):
-        # ★ すでに初期化済みなら何もしない（多重初期化防止）
+    def __init__(self):
         if hasattr(self, "_initialized") and self._initialized:
             return
-
-        # ログディレクトリ作成
-        os.makedirs(log_dir, exist_ok=True)
 
         # ★ 日付ごとにログファイルを分割（商用品質）
         today = datetime.now().strftime("%Y-%m-%d")
         log_file = f"game_{today}.log"
-        self.log_path = os.path.join(log_dir, log_file)
+        self.log_path = os.path.join(LOG_DIR, log_file)
 
         # ロガー設定
         self.logger = logging.getLogger("GameLogger")
         self.logger.setLevel(logging.DEBUG)
 
-        # フォーマット設定
         formatter = logging.Formatter(
-            "[%(asctime)s] [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S"
+            "[%(asctime)s] [%(levelname)s] %(message)s",
+            "%Y-%m-%d %H:%M:%S"
         )
 
         # ファイル出力
@@ -57,7 +67,6 @@ class GameLogger:
         console_handler.setFormatter(formatter)
         console_handler.setLevel(logging.INFO)
 
-        # ハンドラ登録（多重登録防止）
         if not self.logger.handlers:
             self.logger.addHandler(file_handler)
             self.logger.addHandler(console_handler)
@@ -87,7 +96,6 @@ class GameLogger:
     # ============================================================
 
     def log_event(self, event_name, details=None):
-        """ゲームイベントを記録"""
         timestamp = datetime.now().strftime("%H:%M:%S")
         msg = f"[EVENT] {event_name} @ {timestamp}"
         if details:
@@ -95,7 +103,6 @@ class GameLogger:
         self.logger.info(msg)
 
     def log_exception(self, e):
-        """例外を記録（トレースバック付き）"""
         self.logger.exception(f"Exception occurred: {e}")
 
     # ============================================================
@@ -103,7 +110,6 @@ class GameLogger:
     # ============================================================
 
     def close(self):
-        """ロガー終了処理（商用品質）"""
         self.logger.info("=== Game Logger Closed ===")
         for handler in list(self.logger.handlers):
             handler.close()
@@ -113,17 +119,19 @@ class GameLogger:
 def get_logger(name=None):
     return GameLogger()
 
+
 # ============================================================
-# ロングノーツ専用ログ（1ファイルにまとめる）
+# ロングノーツ専用ログ（PyInstaller 対応）
 # ============================================================
 
-LONG_LOG_FILE = os.path.join("logs", "long_notes.log")
+LONG_LOG_FILE = os.path.join(LOG_DIR, "long_notes.log")
 
 long_logger = logging.getLogger("LongLogger")
 long_logger.setLevel(logging.INFO)
 
 long_formatter = logging.Formatter(
-    "[%(asctime)s] [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S"
+    "[%(asctime)s] [%(levelname)s] %(message)s",
+    "%Y-%m-%d %H:%M:%S"
 )
 
 long_handler = logging.FileHandler(LONG_LOG_FILE, encoding="utf-8")
