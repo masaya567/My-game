@@ -6,6 +6,7 @@ print("[DEBUG] SongModel loaded from:", __file__)
 
 import os
 import sys
+import traceback
 import pygame
 from typing import Optional
 
@@ -147,6 +148,7 @@ class Song:
 
         except Exception as e:
             print(f"[Song] Load failed: {e}")
+            traceback.print_exc()
             self.loaded = False
             return False
 

@@ -23,6 +23,9 @@ class ChartPreviewScreen(BaseScreen):
             difficulty=self.difficulty
         )
         self.notes = auto_chart_generator.generate() or []
+        self.song.chart = self.notes
+        self.song.chart_difficulty = str(self.difficulty).lower()
+        self.song.difficulty = self.song.chart_difficulty
 
         # タイムライン用サーフェス
         self.timeline_surface = pygame.Surface((WIDTH, 140), pygame.SRCALPHA)

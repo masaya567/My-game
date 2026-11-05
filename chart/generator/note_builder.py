@@ -80,7 +80,7 @@ class NoteBuilder:
 
             # variation の暴れを抑える（NORMAL のみ）
             if style == "normal":
-                variation = min(variation, 0.10)
+                variation = min(variation, 0.08)
 
             raw_time = float(candidate["time"])
             if raw_time < 0 or (song_duration and raw_time >= song_duration):
@@ -138,9 +138,9 @@ class NoteBuilder:
             local_params = r["_section_params"]
             density = float(local_params.get("density", 1.0))
 
-            # NORMAL の密度を市販ゲーム基準に固定（最大 0.40）
+            # NORMAL の密度を市販ゲーム基準に固定（最大 0.30）
             if style == "normal":
-                density = min(density, 0.40)
+                density = min(density, 0.30)
 
             keep_rate = min(1.0, density)
             if random.random() <= keep_rate:
@@ -203,8 +203,10 @@ class NoteBuilder:
         for r in records:
             t = r["time"]
             # ロング中は全レーンブロック（市販ゲーム寄り）
-            if t <= blocked_until + 1e-7:
-                continue
+            if style != "normal":  # NORMAL ではブロックしない
+                if t <= blocked_until + 1e-7:
+                    continue
+
 
             is_long = round(t, 6) in selected_longs
 

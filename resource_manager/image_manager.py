@@ -10,8 +10,8 @@ import pygame
 from pathlib import Path
 from typing import Optional
 
-# ★ アプリ化対応：BASE_DIR / ASSETS_DIR / IMAGES_DIR
-BASE_DIR = getattr(sys, "_MEIPASS", os.path.abspath(os.path.dirname(__file__)))
+# ★ アプリ化対応：開発時はリポジトリ直下、PyInstaller時は展開先
+BASE_DIR = getattr(sys, "_MEIPASS", os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 IMAGES_DIR = os.path.join(ASSETS_DIR, "images")
 

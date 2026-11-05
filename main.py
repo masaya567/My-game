@@ -7,6 +7,11 @@ import sys
 import os
 import pygame
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # PyInstaller 対応：BASE_DIR を統一
 def get_base_dir():
     if hasattr(sys, "_MEIPASS"):

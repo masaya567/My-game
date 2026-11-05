@@ -1,8 +1,9 @@
 import os
 import requests
 
-VERSION_URL = "https://raw.githubusercontent.com/yourname/PianoTiles/main/version.txt"
-EXE_URL = "https://github.com/yourname/PianoTiles/releases/latest/download/PianoTiles.exe"
+VERSION_URL = "https://raw.githubusercontent.com/masaya567/My-game/main/version.txt"
+EXE_URL = "https://github.com/masaya567/My-game/releases/latest/download/PianoTiles.zip"
+
 
 LOCAL_VERSION_PATH = os.path.join("data", "version.txt")
 LOCAL_EXE_PATH = os.path.join("PianoTiles.exe")

@@ -6,6 +6,8 @@ BaseScreen のフェード・画面遷移・ResourceManager・テーマ切り替
 """
 
 import json
+import os
+import sys
 from pathlib import Path
 
 import pygame
@@ -31,7 +33,13 @@ from resource_manager.resource_manager import ResourceManager
 # テーマ管理
 from utils.theme.theme import set_theme, set_ui_scale
 
-SETTINGS_PATH = Path(__file__).resolve().parent.parent / "data" / "settings.json"
+if getattr(sys, "frozen", False):
+    SETTINGS_DIR = Path(
+        os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")
+    ) / "PianoTiles" / "data"
+else:
+    SETTINGS_DIR = Path(__file__).resolve().parent.parent / "data"
+SETTINGS_PATH = SETTINGS_DIR / "settings.json"
 
 
 class ScreenManager:

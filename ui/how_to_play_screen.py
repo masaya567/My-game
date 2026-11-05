@@ -29,6 +29,8 @@ class HowToPlayScreen(BaseScreen):
             "- AUTOモードで譜面を鑑賞することもできます。",
             "",
             "ESCキーでタイトルに戻ります。",
+            "D / F / J / K：プレイキー",
+            "Qキー：プレイ中にリザルトへ移動",
         ]
 
     # ===== 日本語対応の自動折り返し =====
@@ -86,7 +88,7 @@ class HowToPlayScreen(BaseScreen):
         card_height = int(HEIGHT * 0.86)
 
         # 下限スクロール量
-        min_scroll = -(total_lines * line_height - card_height)
+        min_scroll = card_height - total_lines * line_height - int(35 * UI_SCALE) - int(90 * UI_SCALE)
 
         if self.scroll_y < min_scroll:
             self.scroll_y = min_scroll
