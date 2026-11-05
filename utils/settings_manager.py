@@ -16,7 +16,11 @@ def get_base_dir():
     return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 BASE_DIR = get_base_dir()
-DATA_DIR = os.path.join(BASE_DIR, "data")
+if getattr(sys, "frozen", False):
+    appdata_dir = os.environ.get("LOCALAPPDATA", os.path.join(os.path.expanduser("~"), "AppData", "Local"))
+    DATA_DIR = os.path.join(appdata_dir, "PianoTiles", "data")
+else:
+    DATA_DIR = os.path.join(BASE_DIR, "data")
 SETTINGS_PATH = os.path.join(DATA_DIR, "settings.json")
 
 # ============================================================
@@ -29,6 +33,12 @@ DEFAULT_SETTINGS = {
     "se_volume": 0.8,
     "note_speed": 1.0,
     "ui_scale": 1.0,
+    "key_config": {
+        "Lane 1": 100,
+        "Lane 2": 102,
+        "Lane 3": 106,
+        "Lane 4": 107,
+    },
 }
 
 
